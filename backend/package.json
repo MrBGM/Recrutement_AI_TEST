@@ -1,0 +1,41 @@
+{
+  "name": "ai-chat-backend",
+  "version": "1.0.0",
+  "description": "Backend API pour AI Chat - Service d'intelligence artificielle conversationnelle",
+  "main": "src/index.js",
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "deploy:functions": "firebase deploy --only functions",
+    "lint": "eslint src/",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "firebase-admin": "^11.11.0",
+    "firebase-functions": "^4.5.0",
+    "groq-sdk": "^0.9.0", 
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.56.0"
+  },
+  "keywords": [
+    "ai",
+    "chat",
+    "groq",
+    "llama",
+    "firebase"
+  ],
+  "author": "",
+  "license": "MIT"
+}
