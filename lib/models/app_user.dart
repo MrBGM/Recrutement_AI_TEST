@@ -102,22 +102,33 @@ class AppUser {
 
     // Si la valeur existe (même récente), l'utilisateur tape
     // La suppression est gérée par le timer automatique
-    if (typingValue == null) return false;
+    if (typingValue == null) {
+      print('⏱️ isTypingIn: typingValue is null for $conversationId');
+      return false;
+    }
 
     DateTime typingTime;
 
     // Gérer les différents types possibles
     if (typingValue is Timestamp) {
       typingTime = typingValue.toDate();
+      print('⏱️ isTypingIn: Timestamp converted to $typingTime');
     } else if (typingValue is DateTime) {
       typingTime = typingValue;
+      print('⏱️ isTypingIn: Already DateTime: $typingTime');
     } else {
       // Type inconnu mais présent - considérer comme en train d'écrire
+      print('⏱️ isTypingIn: Unknown type ${typingValue.runtimeType}, returning true');
       return true;
     }
 
-    // Tolérance de 15 secondes pour gérer les décalages d'horloge serveur/client
-    return DateTime.now().difference(typingTime).inSeconds < 15;
+    final now = DateTime.now();
+    final diffSeconds = now.difference(typingTime).inSeconds;
+    final result = diffSeconds < 15;
+
+    print('⏱️ isTypingIn: now=$now, typingTime=$typingTime, diff=${diffSeconds}s, result=$result');
+
+    return result;
   }
 
   /// Copie avec typingIn mis à jour - CORRIGÉ
