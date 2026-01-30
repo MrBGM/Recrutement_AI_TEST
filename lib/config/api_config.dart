@@ -2,6 +2,8 @@
 /// Ce fichier centralise toutes les configurations liees a l'API
 library;
 
+import 'package:flutter/foundation.dart' show kDebugMode;
+
 class ApiConfig {
   // URL du backend - A MODIFIER selon votre environnement
   // En developpement local:
@@ -30,6 +32,6 @@ class ApiConfig {
   // Configuration du mode fallback (appel direct a Groq si backend indisponible)
   static const bool enableFallback = true;
 
-  // Mode debug pour voir les requêtes HTTP
-  static const bool debugMode = true;
+  // Mode debug pour voir les requêtes HTTP (automatique selon l'environnement)
+  static bool get debugMode => kDebugMode;
 }

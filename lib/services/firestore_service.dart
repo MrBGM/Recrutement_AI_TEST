@@ -7,10 +7,16 @@ import '../models/conversation.dart';
 import 'dart:async';
 
 /// Service Firestore complet (style WhatsApp) - VERSION CORRIGÉE
+/// Singleton pour éviter les fuites mémoire avec les timers
 class FirestoreService {
+  // Singleton pattern
+  static final FirestoreService _instance = FirestoreService._internal();
+  factory FirestoreService() => _instance;
+  FirestoreService._internal();
+
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Timers pour le statut d'écriture
+  // Timers pour le statut d'écriture (géré par le singleton)
   final Map<String, Timer?> _typingTimers = {};
 
   // ==========================================

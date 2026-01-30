@@ -11,6 +11,14 @@ class NotificationService {
   String? _fcmToken;
   String? get fcmToken => _fcmToken;
 
+  // Clé VAPID par défaut - Peut être override via configure()
+  static String? _vapidKey;
+
+  /// Configure la clé VAPID avant l'initialisation
+  static void configure({String? vapidKey}) {
+    _vapidKey = vapidKey;
+  }
+
   /// Initialise le service de notifications (version WEB)
   Future<void> initialize(String userId) async {
     if (!kIsWeb) {
@@ -21,35 +29,43 @@ class NotificationService {
     // Demander la permission
     await _requestPermission();
 
-    // Obtenir le token FCM
-    _fcmToken = await _messaging.getToken(
-      vapidKey:
-          'BKYvvM8UNIJR0Oes2Z_CNtOlndKmeG17Ek17Rs92hIQQHvy802OxqGAkb1bY0fGJaKCFsu1iX8SArRYSWZUFD_M', // ← Remplacer par votre clé Vapid
-    );
-
-    if (_fcmToken != null) {
-      print('✅ Token FCM Web obtenu: ${_fcmToken!.substring(0, 20)}...');
-      await _saveTokenToFirestore(userId, _fcmToken!);
+    // Vérifier si la clé VAPID est configurée
+    if (_vapidKey == null || _vapidKey!.isEmpty) {
+      print('⚠️ Clé VAPID non configurée - Notifications push désactivées');
+      print('   Configurez ApiKeys.vapidKey dans lib/config/api_keys.dart');
+      return;
     }
 
-    // Écouter les changements de token
-    _messaging.onTokenRefresh.listen((newToken) {
-      _fcmToken = newToken;
-      _saveTokenToFirestore(userId, newToken);
-    });
+    try {
+      // Obtenir le token FCM
+      _fcmToken = await _messaging.getToken(vapidKey: _vapidKey);
 
-    // Gérer les messages au premier plan
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print('📬 Message reçu: ${message.notification?.title}');
-
-      // Sur Web, afficher une notification navigateur
-      if (message.notification != null) {
-        _showBrowserNotification(
-          title: message.notification!.title ?? 'Nouveau message',
-          body: message.notification!.body ?? '',
-        );
+      if (_fcmToken != null) {
+        print('✅ Token FCM Web obtenu: ${_fcmToken!.substring(0, 20)}...');
+        await _saveTokenToFirestore(userId, _fcmToken!);
       }
-    });
+
+      // Écouter les changements de token
+      _messaging.onTokenRefresh.listen((newToken) {
+        _fcmToken = newToken;
+        _saveTokenToFirestore(userId, newToken);
+      });
+
+      // Gérer les messages au premier plan
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        print('📬 Message reçu: ${message.notification?.title}');
+
+        // Sur Web, afficher une notification navigateur
+        if (message.notification != null) {
+          _showBrowserNotification(
+            title: message.notification!.title ?? 'Nouveau message',
+            body: message.notification!.body ?? '',
+          );
+        }
+      });
+    } catch (e) {
+      print('❌ Erreur initialisation notifications: $e');
+    }
   }
 
   Future<void> _requestPermission() async {

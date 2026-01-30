@@ -76,12 +76,29 @@ class ChatProvider extends ChangeNotifier {
     }
   }
 
+  /// Met à jour le statut d'un message spécifique
   Future<void> _updateMessageStatus(
     String conversationId,
-    MessageStatus status,
-  ) async {
-    // Cette méthode serait appelée par un listener Firestore
-    // quand le message est effectivement délivré
+    MessageStatus status, {
+    String? messageId,
+  }) async {
+    // Si un messageId est fourni, mettre à jour ce message spécifique
+    if (messageId != null) {
+      try {
+        if (_isGroupChat) {
+          // Pour les groupes, pas de mise à jour de statut individuel
+          return;
+        }
+
+        if (status == MessageStatus.delivered) {
+          await _firestoreService.markMessageAsDelivered(conversationId, messageId);
+        } else if (status == MessageStatus.read) {
+          await _firestoreService.markMessageAsRead(conversationId, messageId);
+        }
+      } catch (e) {
+        print('Erreur mise à jour statut message: $e');
+      }
+    }
   }
   Future<void> markAsRead() async {
     try {
