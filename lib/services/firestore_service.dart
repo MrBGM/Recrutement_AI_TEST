@@ -167,11 +167,13 @@ class FirestoreService {
     try {
       await messageRef.set(messageData);
 
-      // Mettre à jour les métadonnées
+      // Mettre à jour les métadonnées ET incrémenter le compteur non lu pour l'autre utilisateur
+      final otherUserId = _getOtherUserId(conversationId, senderId);
       await _updateConversationMetadata(
         conversationId,
         content: content,
         senderId: senderId,
+        incrementUnreadFor: otherUserId,
       );
 
       return messageRef.id;
@@ -752,9 +754,9 @@ class FirestoreService {
         'typingIn.$conversationId': FieldValue.serverTimestamp(),
       });
 
-      // Arrêter automatiquement après 5 secondes
+      // Arrêter automatiquement après 10 secondes (marge pour les décalages)
       _typingTimers[conversationId]?.cancel();
-      _typingTimers[conversationId] = Timer(const Duration(seconds: 5), () {
+      _typingTimers[conversationId] = Timer(const Duration(seconds: 10), () {
         setTypingStatus(
           conversationId: conversationId,
           userId: userId,

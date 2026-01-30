@@ -100,6 +100,8 @@ class AppUser {
   bool isTypingIn(String conversationId) {
     final typingValue = typingIn[conversationId];
 
+    // Si la valeur existe (même récente), l'utilisateur tape
+    // La suppression est gérée par le timer automatique
     if (typingValue == null) return false;
 
     DateTime typingTime;
@@ -110,11 +112,12 @@ class AppUser {
     } else if (typingValue is DateTime) {
       typingTime = typingValue;
     } else {
-      return false; // Type invalide
+      // Type inconnu mais présent - considérer comme en train d'écrire
+      return true;
     }
 
-    // Si plus de 8 secondes, considérer que l'utilisateur n'écrit plus
-    return DateTime.now().difference(typingTime).inSeconds < 8;
+    // Tolérance de 15 secondes pour gérer les décalages d'horloge serveur/client
+    return DateTime.now().difference(typingTime).inSeconds < 15;
   }
 
   /// Copie avec typingIn mis à jour - CORRIGÉ

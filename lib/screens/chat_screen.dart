@@ -187,7 +187,10 @@ class ChatScreen extends StatelessWidget {
             ),
 
           // Indicateur "en train d'écrire"
-          _TypingIndicator(otherUserId: otherUser.id),
+          _TypingIndicator(
+            otherUserId: otherUser.id,
+            conversationId: provider.conversationId,
+          ),
 
           // Liste des messages
           Expanded(
@@ -356,8 +359,12 @@ class ChatScreen extends StatelessWidget {
 /// Indicateur "en train d'écrire..." avec mise à jour en temps réel
 class _TypingIndicator extends StatelessWidget {
   final String otherUserId;
+  final String conversationId;
 
-  const _TypingIndicator({required this.otherUserId});
+  const _TypingIndicator({
+    required this.otherUserId,
+    required this.conversationId,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -372,7 +379,9 @@ class _TypingIndicator extends StatelessWidget {
         }
 
         final user = snapshot.data!;
-        final conversationId = context.read<ChatProvider>().conversationId;
+
+        // Debug: afficher les infos de typing
+        // print('🔍 Typing check: user=${user.displayName}, conv=$conversationId, typingIn=${user.typingIn}');
 
         if (!user.isTypingIn(conversationId)) {
           return const SizedBox.shrink();
