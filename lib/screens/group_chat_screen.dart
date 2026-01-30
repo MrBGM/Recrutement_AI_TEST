@@ -162,6 +162,9 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     }
 
     final colorScheme = Theme.of(context).colorScheme;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth >= 600;
+    final isDesktop = screenWidth >= 1024;
 
     // Créer un AppUser factice pour le groupe (pour compatibilité avec ChatProvider)
     final groupAsUser = AppUser(
@@ -191,33 +194,34 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                 icon: const Icon(Icons.arrow_back),
                 onPressed: widget.onBack,
               ),
+              toolbarHeight: isDesktop ? 64 : 56,
               title: InkWell(
                 onTap: _showGroupInfo,
                 child: Row(
                   children: [
                     CircleAvatar(
-                      radius: 18,
+                      radius: isDesktop ? 22 : 18,
                       backgroundColor: colorScheme.secondaryContainer,
                       child: Icon(
                         Icons.groups,
-                        size: 20,
+                        size: isDesktop ? 24 : 20,
                         color: colorScheme.onSecondaryContainer,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: isDesktop ? 16 : 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             widget.group.name,
-                            style: const TextStyle(fontSize: 16),
+                            style: TextStyle(fontSize: isDesktop ? 18 : 16),
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
                             '${widget.group.memberIds.length} membres',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: isDesktop ? 13 : 12,
                               fontWeight: FontWeight.normal,
                               color: colorScheme.onPrimaryContainer
                                   .withOpacity(0.7),
@@ -234,15 +238,16 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
               elevation: 0,
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.info_outline),
+                  icon: Icon(Icons.info_outline, size: isDesktop ? 28 : 24),
                   tooltip: 'Infos du groupe',
                   onPressed: _showGroupInfo,
                 ),
                 IconButton(
-                  icon: const Icon(Icons.delete_outline),
+                  icon: Icon(Icons.delete_outline, size: isDesktop ? 28 : 24),
                   tooltip: 'Vider la discussion',
                   onPressed: () => _showClearDialog(context, provider),
                 ),
+                SizedBox(width: isDesktop ? 8 : 0),
               ],
             ),
             body: Column(
@@ -251,11 +256,14 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                 if (provider.error != null)
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(12),
+                    padding: EdgeInsets.all(isDesktop ? 16 : 12),
                     color: colorScheme.errorContainer,
                     child: Text(
                       provider.error!,
-                      style: TextStyle(color: colorScheme.onErrorContainer),
+                      style: TextStyle(
+                        color: colorScheme.onErrorContainer,
+                        fontSize: isDesktop ? 15 : 14,
+                      ),
                     ),
                   ),
 
@@ -278,38 +286,44 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
 
                       if (messages.isEmpty) {
                         return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.groups_outlined,
-                                size: 64,
-                                color: colorScheme.outline,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Aucun message',
-                                style: TextStyle(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.groups_outlined,
+                                  size: isDesktop ? 80 : 64,
                                   color: colorScheme.outline,
-                                  fontSize: 18,
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Commencez la conversation !',
-                                style: TextStyle(
-                                  color: colorScheme.outline,
-                                  fontSize: 14,
+                                SizedBox(height: isDesktop ? 24 : 16),
+                                Text(
+                                  'Aucun message',
+                                  style: TextStyle(
+                                    color: colorScheme.outline,
+                                    fontSize: isDesktop ? 22 : 18,
+                                  ),
                                 ),
-                              ),
-                            ],
+                                SizedBox(height: isDesktop ? 12 : 8),
+                                Text(
+                                  'Commencez la conversation !',
+                                  style: TextStyle(
+                                    color: colorScheme.outline,
+                                    fontSize: isDesktop ? 16 : 14,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         );
                       }
 
                       return ListView.builder(
                         reverse: false,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: EdgeInsets.symmetric(
+                          vertical: isDesktop ? 20 : 16,
+                          horizontal: isDesktop ? 16 : 0,
+                        ),
                         itemCount: messages.length,
                         itemBuilder: (context, index) {
                           final message = messages[index];

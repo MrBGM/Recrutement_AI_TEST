@@ -412,6 +412,9 @@ class _ContactsTabState extends State<ContactsTab>
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final currentUser = FirebaseAuth.instance.currentUser;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth >= 600;
+    final isDesktop = screenWidth >= 1024;
 
     if (currentUser == null) {
       return const Center(child: Text('Non connecté'));
@@ -419,44 +422,86 @@ class _ContactsTabState extends State<ContactsTab>
 
     final isSelecting = _isSelectingForGroup || _isSelectingForBroadcast;
 
+    // Dimensions responsives
+    final headerPadding = isDesktop ? 20.0 : (isTablet ? 16.0 : 12.0);
+    final buttonSpacing = isDesktop ? 16.0 : 12.0;
+
     return Scaffold(
       body: Column(
         children: [
           // Header avec boutons de création
           if (!isSelecting)
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(headerPadding),
               decoration: BoxDecoration(
                 color: colorScheme.surfaceContainerHighest,
                 border: Border(
                   bottom: BorderSide(color: colorScheme.outlineVariant),
                 ),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _startGroupCreation,
-                      icon: const Icon(Icons.group_add),
-                      label: const Text('Nouveau groupe'),
+              child: isDesktop
+                  ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 220,
+                          child: OutlinedButton.icon(
+                            onPressed: _startGroupCreation,
+                            icon: const Icon(Icons.group_add),
+                            label: const Text('Nouveau groupe'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: buttonSpacing),
+                        SizedBox(
+                          width: 220,
+                          child: OutlinedButton.icon(
+                            onPressed: _startBroadcastCreation,
+                            icon: const Icon(Icons.campaign),
+                            label: const Text('Liste de diffusion'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _startGroupCreation,
+                            icon: Icon(Icons.group_add, size: isTablet ? 24 : 20),
+                            label: Text(
+                              'Nouveau groupe',
+                              style: TextStyle(fontSize: isTablet ? 14 : 12),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: buttonSpacing),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _startBroadcastCreation,
+                            icon: Icon(Icons.campaign, size: isTablet ? 24 : 20),
+                            label: Text(
+                              'Liste de diffusion',
+                              style: TextStyle(fontSize: isTablet ? 14 : 12),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _startBroadcastCreation,
-                      icon: const Icon(Icons.campaign),
-                      label: const Text('Liste de diffusion'),
-                    ),
-                  ),
-                ],
-              ),
             ),
 
           // Header de sélection
           if (isSelecting)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: EdgeInsets.symmetric(
+                horizontal: headerPadding,
+                vertical: isDesktop ? 14 : 12,
+              ),
               decoration: BoxDecoration(
                 color: colorScheme.primaryContainer,
                 border: Border(
@@ -469,7 +514,7 @@ class _ContactsTabState extends State<ContactsTab>
                     onPressed: _isCreating ? null : _cancelSelection,
                     icon: const Icon(Icons.close),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: isDesktop ? 12 : 8),
                   Expanded(
                     child: Text(
                       _isSelectingForGroup
@@ -477,14 +522,16 @@ class _ContactsTabState extends State<ContactsTab>
                           : 'Sélectionner les destinataires',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                        fontSize: isDesktop ? 18 : 16,
                         color: colorScheme.onPrimaryContainer,
                       ),
                     ),
                   ),
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isDesktop ? 14 : 12,
+                      vertical: isDesktop ? 6 : 4,
+                    ),
                     decoration: BoxDecoration(
                       color: colorScheme.primary,
                       borderRadius: BorderRadius.circular(12),
@@ -493,12 +540,12 @@ class _ContactsTabState extends State<ContactsTab>
                       '${_selectedContactIds.length}',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                        fontSize: isDesktop ? 18 : 16,
                         color: colorScheme.onPrimary,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: isDesktop ? 16 : 12),
                   FilledButton.icon(
                     onPressed: _isCreating
                         ? null
@@ -506,16 +553,22 @@ class _ContactsTabState extends State<ContactsTab>
                             ? _createGroup
                             : _createBroadcastList),
                     icon: _isCreating
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
+                        ? SizedBox(
+                            width: isDesktop ? 18 : 16,
+                            height: isDesktop ? 18 : 16,
+                            child: const CircularProgressIndicator(
                               strokeWidth: 2,
                               color: Colors.white,
                             ),
                           )
                         : const Icon(Icons.arrow_forward),
                     label: Text(_isCreating ? 'Création...' : 'Suivant'),
+                    style: FilledButton.styleFrom(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isDesktop ? 20 : 16,
+                        vertical: isDesktop ? 14 : 12,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -525,10 +578,20 @@ class _ContactsTabState extends State<ContactsTab>
           if (!isSelecting)
             TabBar(
               controller: _tabController,
-              tabs: const [
-                Tab(icon: Icon(Icons.contacts), text: 'Contacts'),
-                Tab(icon: Icon(Icons.groups), text: 'Groupes'),
-                Tab(icon: Icon(Icons.campaign), text: 'Diffusions'),
+              labelStyle: TextStyle(fontSize: isDesktop ? 15 : 14),
+              tabs: [
+                Tab(
+                  icon: Icon(Icons.contacts, size: isDesktop ? 28 : 24),
+                  text: 'Contacts',
+                ),
+                Tab(
+                  icon: Icon(Icons.groups, size: isDesktop ? 28 : 24),
+                  text: 'Groupes',
+                ),
+                Tab(
+                  icon: Icon(Icons.campaign, size: isDesktop ? 28 : 24),
+                  text: 'Diffusions',
+                ),
               ],
             ),
 
@@ -552,6 +615,8 @@ class _ContactsTabState extends State<ContactsTab>
 
   Widget _buildContactsList(String currentUserId, {required bool isSelecting}) {
     final colorScheme = Theme.of(context).colorScheme;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth >= 1024;
 
     return StreamBuilder<List<AppUser>>(
       stream: _userService.getAllUsers(currentUserId),
@@ -568,24 +633,52 @@ class _ContactsTabState extends State<ContactsTab>
 
         if (users.isEmpty) {
           return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.contacts_outlined,
-                  size: 64,
-                  color: colorScheme.outline,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Aucun contact',
-                  style: TextStyle(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.contacts_outlined,
+                    size: isDesktop ? 80 : 64,
                     color: colorScheme.outline,
-                    fontSize: 16,
                   ),
-                ),
-              ],
+                  SizedBox(height: isDesktop ? 24 : 16),
+                  Text(
+                    'Aucun contact',
+                    style: TextStyle(
+                      color: colorScheme.outline,
+                      fontSize: isDesktop ? 20 : 16,
+                    ),
+                  ),
+                ],
+              ),
             ),
+          );
+        }
+
+        // Sur desktop, afficher en grille si largeur suffisante
+        if (isDesktop && screenWidth >= 1200) {
+          return GridView.builder(
+            padding: const EdgeInsets.all(16),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: screenWidth >= 1400 ? 3 : 2,
+              childAspectRatio: 3.5,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 8,
+            ),
+            itemCount: users.length,
+            itemBuilder: (context, index) {
+              final user = users[index];
+              final isSelected = _selectedContactIds.contains(user.id);
+
+              return _ContactTile(
+                user: user,
+                isSelectionMode: isSelecting,
+                isSelected: isSelected,
+                onTap: isSelecting ? () => _toggleContactSelection(user.id) : null,
+              );
+            },
           );
         }
 
@@ -610,6 +703,8 @@ class _ContactsTabState extends State<ContactsTab>
 
   Widget _buildGroupsList(String currentUserId) {
     final colorScheme = Theme.of(context).colorScheme;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth >= 1024;
 
     return StreamBuilder<List<Group>>(
       stream: _firestoreService.getUserGroups(currentUserId),
@@ -620,17 +715,23 @@ class _ContactsTabState extends State<ContactsTab>
 
         if (snapshot.hasError) {
           return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.error_outline, size: 48, color: colorScheme.error),
-                const SizedBox(height: 16),
-                Text(
-                  'Erreur: ${snapshot.error}',
-                  style: TextStyle(color: colorScheme.error),
-                  textAlign: TextAlign.center,
-                ),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: isDesktop ? 56 : 48, color: colorScheme.error),
+                  SizedBox(height: isDesktop ? 20 : 16),
+                  Text(
+                    'Erreur: ${snapshot.error}',
+                    style: TextStyle(
+                      color: colorScheme.error,
+                      fontSize: isDesktop ? 16 : 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
             ),
           );
         }
@@ -639,39 +740,66 @@ class _ContactsTabState extends State<ContactsTab>
 
         if (groups.isEmpty) {
           return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.groups_outlined,
-                  size: 64,
-                  color: colorScheme.outline,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Aucun groupe',
-                  style: TextStyle(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.groups_outlined,
+                    size: isDesktop ? 80 : 64,
                     color: colorScheme.outline,
-                    fontSize: 16,
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Créez un groupe pour discuter avec plusieurs personnes',
-                  style: TextStyle(
-                    color: colorScheme.outline,
-                    fontSize: 12,
+                  SizedBox(height: isDesktop ? 24 : 16),
+                  Text(
+                    'Aucun groupe',
+                    style: TextStyle(
+                      color: colorScheme.outline,
+                      fontSize: isDesktop ? 20 : 16,
+                    ),
                   ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                OutlinedButton.icon(
-                  onPressed: _startGroupCreation,
-                  icon: const Icon(Icons.group_add),
-                  label: const Text('Créer un groupe'),
-                ),
-              ],
+                  SizedBox(height: isDesktop ? 12 : 8),
+                  Text(
+                    'Créez un groupe pour discuter avec plusieurs personnes',
+                    style: TextStyle(
+                      color: colorScheme.outline,
+                      fontSize: isDesktop ? 14 : 12,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: isDesktop ? 24 : 16),
+                  OutlinedButton.icon(
+                    onPressed: _startGroupCreation,
+                    icon: const Icon(Icons.group_add),
+                    label: const Text('Créer un groupe'),
+                    style: OutlinedButton.styleFrom(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isDesktop ? 24 : 16,
+                        vertical: isDesktop ? 16 : 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
+          );
+        }
+
+        // Sur desktop large, afficher en grille
+        if (isDesktop && screenWidth >= 1200) {
+          return GridView.builder(
+            padding: const EdgeInsets.all(16),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: screenWidth >= 1400 ? 3 : 2,
+              childAspectRatio: 3.5,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 8,
+            ),
+            itemCount: groups.length,
+            itemBuilder: (context, index) {
+              final group = groups[index];
+              return _GroupTile(group: group);
+            },
           );
         }
 
@@ -688,6 +816,8 @@ class _ContactsTabState extends State<ContactsTab>
 
   Widget _buildBroadcastsList(String currentUserId) {
     final colorScheme = Theme.of(context).colorScheme;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth >= 1024;
 
     return StreamBuilder<List<BroadcastList>>(
       stream: _firestoreService.getUserBroadcastLists(currentUserId),
@@ -698,17 +828,23 @@ class _ContactsTabState extends State<ContactsTab>
 
         if (snapshot.hasError) {
           return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.error_outline, size: 48, color: colorScheme.error),
-                const SizedBox(height: 16),
-                Text(
-                  'Erreur: ${snapshot.error}',
-                  style: TextStyle(color: colorScheme.error),
-                  textAlign: TextAlign.center,
-                ),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: isDesktop ? 56 : 48, color: colorScheme.error),
+                  SizedBox(height: isDesktop ? 20 : 16),
+                  Text(
+                    'Erreur: ${snapshot.error}',
+                    style: TextStyle(
+                      color: colorScheme.error,
+                      fontSize: isDesktop ? 16 : 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
             ),
           );
         }
@@ -717,39 +853,70 @@ class _ContactsTabState extends State<ContactsTab>
 
         if (broadcasts.isEmpty) {
           return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.campaign_outlined,
-                  size: 64,
-                  color: colorScheme.outline,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Aucune liste de diffusion',
-                  style: TextStyle(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.campaign_outlined,
+                    size: isDesktop ? 80 : 64,
                     color: colorScheme.outline,
-                    fontSize: 16,
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Envoyez le même message à plusieurs personnes',
-                  style: TextStyle(
-                    color: colorScheme.outline,
-                    fontSize: 12,
+                  SizedBox(height: isDesktop ? 24 : 16),
+                  Text(
+                    'Aucune liste de diffusion',
+                    style: TextStyle(
+                      color: colorScheme.outline,
+                      fontSize: isDesktop ? 20 : 16,
+                    ),
                   ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                OutlinedButton.icon(
-                  onPressed: _startBroadcastCreation,
-                  icon: const Icon(Icons.campaign),
-                  label: const Text('Créer une liste'),
-                ),
-              ],
+                  SizedBox(height: isDesktop ? 12 : 8),
+                  Text(
+                    'Envoyez le même message à plusieurs personnes',
+                    style: TextStyle(
+                      color: colorScheme.outline,
+                      fontSize: isDesktop ? 14 : 12,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: isDesktop ? 24 : 16),
+                  OutlinedButton.icon(
+                    onPressed: _startBroadcastCreation,
+                    icon: const Icon(Icons.campaign),
+                    label: const Text('Créer une liste'),
+                    style: OutlinedButton.styleFrom(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isDesktop ? 24 : 16,
+                        vertical: isDesktop ? 16 : 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
+          );
+        }
+
+        // Sur desktop large, afficher en grille
+        if (isDesktop && screenWidth >= 1200) {
+          return GridView.builder(
+            padding: const EdgeInsets.all(16),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: screenWidth >= 1400 ? 3 : 2,
+              childAspectRatio: 3.5,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 8,
+            ),
+            itemCount: broadcasts.length,
+            itemBuilder: (context, index) {
+              final broadcast = broadcasts[index];
+              return _BroadcastTile(
+                broadcast: broadcast,
+                onSend: () => _showSendBroadcastDialog(broadcast),
+                onDelete: () => _deleteBroadcast(broadcast),
+              );
+            },
           );
         }
 

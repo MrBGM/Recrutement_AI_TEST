@@ -161,10 +161,19 @@ class _SettingsTabState extends State<SettingsTab> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final user = FirebaseAuth.instance.currentUser;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth >= 600;
+    final isDesktop = screenWidth >= 1024;
 
     if (user == null) {
       return const Center(child: Text('Non connecté'));
     }
+
+    // Dimensions responsives
+    final headerPadding = isDesktop ? 40.0 : (isTablet ? 32.0 : 24.0);
+    final avatarRadius = isDesktop ? 80.0 : (isTablet ? 70.0 : 60.0);
+    final nameFontSize = isDesktop ? 32.0 : (isTablet ? 28.0 : 24.0);
+    final avatarFontSize = isDesktop ? 64.0 : (isTablet ? 56.0 : 48.0);
 
     return StreamBuilder<AppUser?>(
       stream: _userService.getUserStream(user.uid),
@@ -173,11 +182,11 @@ class _SettingsTabState extends State<SettingsTab> {
         final displayName = appUser?.displayName ?? user.displayName ?? 'Utilisateur';
         final status = appUser?.status;
 
-        return ListView(
+        Widget content = ListView(
           children: [
             // Header avec photo de profil
             Container(
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.all(headerPadding),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
@@ -194,14 +203,14 @@ class _SettingsTabState extends State<SettingsTab> {
                   Stack(
                     children: [
                       CircleAvatar(
-                        radius: 60,
+                        radius: avatarRadius,
                         backgroundColor: colorScheme.onPrimary,
                         child: Text(
                           displayName.isNotEmpty
                               ? displayName[0].toUpperCase()
                               : '?',
                           style: TextStyle(
-                            fontSize: 48,
+                            fontSize: avatarFontSize,
                             fontWeight: FontWeight.bold,
                             color: colorScheme.primary,
                           ),
@@ -211,12 +220,12 @@ class _SettingsTabState extends State<SettingsTab> {
                         right: 0,
                         bottom: 0,
                         child: CircleAvatar(
-                          radius: 18,
+                          radius: isDesktop ? 24 : 18,
                           backgroundColor: colorScheme.primary,
                           child: IconButton(
                             icon: Icon(
                               Icons.camera_alt,
-                              size: 18,
+                              size: isDesktop ? 24 : 18,
                               color: colorScheme.onPrimary,
                             ),
                             onPressed: () {
@@ -233,13 +242,13 @@ class _SettingsTabState extends State<SettingsTab> {
                     ],
                   ),
 
-                  const SizedBox(height: 16),
+                  SizedBox(height: isDesktop ? 24 : 16),
 
                   // Nom
                   Text(
                     displayName,
                     style: TextStyle(
-                      fontSize: 24,
+                      fontSize: nameFontSize,
                       fontWeight: FontWeight.bold,
                       color: colorScheme.onPrimary,
                     ),
@@ -247,11 +256,11 @@ class _SettingsTabState extends State<SettingsTab> {
 
                   // Statut/Bio
                   if (status != null && status.isNotEmpty) ...[
-                    const SizedBox(height: 4),
+                    SizedBox(height: isDesktop ? 8 : 4),
                     Text(
                       status,
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: isDesktop ? 16 : 14,
                         color: colorScheme.onPrimary.withOpacity(0.9),
                         fontStyle: FontStyle.italic,
                       ),
@@ -259,18 +268,18 @@ class _SettingsTabState extends State<SettingsTab> {
                     ),
                   ],
 
-                  const SizedBox(height: 4),
+                  SizedBox(height: isDesktop ? 8 : 4),
 
                   // Email
                   Text(
                     user.email ?? '',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: isDesktop ? 16 : 14,
                       color: colorScheme.onPrimary.withOpacity(0.8),
                     ),
                   ),
 
-                  const SizedBox(height: 16),
+                  SizedBox(height: isDesktop ? 24 : 16),
 
                   // Bouton modifier
                   OutlinedButton.icon(
@@ -280,13 +289,17 @@ class _SettingsTabState extends State<SettingsTab> {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: colorScheme.onPrimary,
                       side: BorderSide(color: colorScheme.onPrimary),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isDesktop ? 24 : 16,
+                        vertical: isDesktop ? 16 : 12,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 8),
+            SizedBox(height: isDesktop ? 16 : 8),
 
             // Section Compte
             _SectionHeader(title: 'Compte'),
@@ -376,7 +389,7 @@ class _SettingsTabState extends State<SettingsTab> {
                   context: context,
                   applicationName: 'AI Chat',
                   applicationVersion: '2.0.0',
-                  applicationIcon: const Icon(Icons.chat_bubble, size: 48),
+                  applicationIcon: Icon(Icons.chat_bubble, size: isDesktop ? 64 : 48),
                   children: [
                     const Text('Application de messagerie avec IA'),
                     const SizedBox(height: 8),
@@ -389,9 +402,9 @@ class _SettingsTabState extends State<SettingsTab> {
             const Divider(height: 1),
 
             // Bouton déconnexion
-            const SizedBox(height: 16),
+            SizedBox(height: isDesktop ? 24 : 16),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: EdgeInsets.symmetric(horizontal: isDesktop ? 24 : 16),
               child: OutlinedButton.icon(
                 onPressed: _showLogoutDialog,
                 icon: const Icon(Icons.logout),
@@ -399,14 +412,26 @@ class _SettingsTabState extends State<SettingsTab> {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.red,
                   side: const BorderSide(color: Colors.red),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  padding: EdgeInsets.symmetric(vertical: isDesktop ? 20 : 16),
                 ),
               ),
             ),
 
-            const SizedBox(height: 32),
+            SizedBox(height: isDesktop ? 48 : 32),
           ],
         );
+
+        // Sur desktop, centrer le contenu avec une largeur max
+        if (isDesktop) {
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: content,
+            ),
+          );
+        }
+
+        return content;
       },
     );
   }

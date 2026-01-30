@@ -65,33 +65,131 @@ class _HomeScreenState extends State<HomeScreen>
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final user = FirebaseAuth.instance.currentUser;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth >= 600;
+    final isDesktop = screenWidth >= 1024;
 
+    // Sur desktop, on peut utiliser un layout avec NavigationRail
+    if (isDesktop) {
+      return Scaffold(
+        body: Row(
+          children: [
+            // NavigationRail pour desktop
+            NavigationRail(
+              selectedIndex: _tabController.index,
+              onDestinationSelected: (index) {
+                setState(() {
+                  _tabController.animateTo(index);
+                });
+              },
+              extended: screenWidth >= 1200,
+              backgroundColor: colorScheme.primary,
+              selectedIconTheme: IconThemeData(color: colorScheme.onPrimary),
+              unselectedIconTheme: IconThemeData(color: colorScheme.onPrimary.withOpacity(0.6)),
+              selectedLabelTextStyle: TextStyle(color: colorScheme.onPrimary, fontWeight: FontWeight.bold),
+              unselectedLabelTextStyle: TextStyle(color: colorScheme.onPrimary.withOpacity(0.6)),
+              indicatorColor: colorScheme.primaryContainer,
+              leading: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: colorScheme.onPrimary,
+                      child: Text(
+                        user?.displayName?.isNotEmpty == true
+                            ? user!.displayName![0].toUpperCase()
+                            : '?',
+                        style: TextStyle(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'AI Chat',
+                      style: TextStyle(
+                        color: colorScheme.onPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              destinations: [
+                NavigationRailDestination(
+                  icon: Icon(Icons.chat_bubble_outline),
+                  selectedIcon: Icon(Icons.chat_bubble),
+                  label: Text('Discussions'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.contacts_outlined),
+                  selectedIcon: Icon(Icons.contacts),
+                  label: Text('Contacts'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.settings_outlined),
+                  selectedIcon: Icon(Icons.settings),
+                  label: Text('Paramètres'),
+                ),
+              ],
+            ),
+            // Contenu principal
+            Expanded(
+              child: AnimatedBuilder(
+                animation: _tabController,
+                builder: (context, child) {
+                  return IndexedStack(
+                    index: _tabController.index,
+                    children: const [
+                      ChatsTab(),
+                      ContactsTab(),
+                      SettingsTab(),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Layout tablette et mobile avec TabBar
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'AI Chat',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: isTablet ? 24 : 20,
+          ),
         ),
         backgroundColor: colorScheme.primary,
         foregroundColor: colorScheme.onPrimary,
         elevation: 0,
+        toolbarHeight: isTablet ? 64 : 56,
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: colorScheme.onPrimary,
           indicatorWeight: 3,
           labelColor: colorScheme.onPrimary,
           unselectedLabelColor: colorScheme.onPrimary.withOpacity(0.7),
-          tabs: const [
+          labelStyle: TextStyle(fontSize: isTablet ? 14 : 12),
+          tabs: [
             Tab(
-              icon: Icon(Icons.chat_bubble),
+              icon: Icon(Icons.chat_bubble, size: isTablet ? 28 : 24),
               text: 'Discussions',
             ),
             Tab(
-              icon: Icon(Icons.contacts),
+              icon: Icon(Icons.contacts, size: isTablet ? 28 : 24),
               text: 'Contacts',
             ),
             Tab(
-              icon: Icon(Icons.settings),
+              icon: Icon(Icons.settings, size: isTablet ? 28 : 24),
               text: 'Paramètres',
             ),
           ],
@@ -99,9 +197,9 @@ class _HomeScreenState extends State<HomeScreen>
         actions: [
           // Photo de profil utilisateur
           Padding(
-            padding: const EdgeInsets.only(right: 16),
+            padding: EdgeInsets.only(right: isTablet ? 24 : 16),
             child: CircleAvatar(
-              radius: 18,
+              radius: isTablet ? 22 : 18,
               backgroundColor: colorScheme.onPrimary,
               child: Text(
                 user?.displayName?.isNotEmpty == true
@@ -110,6 +208,7 @@ class _HomeScreenState extends State<HomeScreen>
                 style: TextStyle(
                   color: colorScheme.primary,
                   fontWeight: FontWeight.bold,
+                  fontSize: isTablet ? 16 : 14,
                 ),
               ),
             ),

@@ -39,18 +39,45 @@ class _ChatsTabState extends State<ChatsTab> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final currentUser = FirebaseAuth.instance.currentUser;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth >= 600;
+    final isDesktop = screenWidth >= 1024;
+    final isMobile = screenWidth < 600;
 
     if (currentUser == null) {
       return const Center(child: Text('Non connecté'));
     }
 
+    // Calcul des dimensions responsives
+    final sidebarWidth = isDesktop ? 380.0 : (isTablet ? 320.0 : screenWidth);
+
+    // Sur mobile, afficher soit la liste soit le chat (pas les deux)
+    if (isMobile) {
+      if (_selectedUser == null) {
+        return _buildConversationsList(context, currentUser, screenWidth);
+      } else {
+        return ChangeNotifierProvider(
+          key: ValueKey(_selectedUser!.id),
+          create: (_) => ChatProvider(
+            currentUserId: currentUser.uid,
+            currentUserName: currentUser.displayName ?? 'Utilisateur',
+            otherUser: _selectedUser!,
+          ),
+          child: ChatScreen(
+            onBack: () => setState(() => _selectedUser = null),
+          ),
+        );
+      }
+    }
+
+    // Sur tablette et desktop, afficher le split-view
     return Row(
       children: [
         // ========================================
         // BARRE LATÉRALE GAUCHE - LISTE DES CONVERSATIONS
         // ========================================
         Container(
-          width: 320,
+          width: sidebarWidth,
           decoration: BoxDecoration(
             color: colorScheme.surface,
             border: Border(
@@ -60,96 +87,7 @@ class _ChatsTabState extends State<ChatsTab> {
               ),
             ),
           ),
-          child: Column(
-            children: [
-              // Header de recherche
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest,
-                  border: Border(
-                    bottom: BorderSide(
-                      color: colorScheme.outlineVariant,
-                    ),
-                  ),
-                ),
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Rechercher une conversation...',
-                    prefixIcon: const Icon(Icons.search),
-                    filled: true,
-                    fillColor: colorScheme.surfaceContainer,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                  ),
-                ),
-              ),
-
-              // Liste des conversations
-              Expanded(
-                child: StreamBuilder<List<AppUser>>(
-                  stream: _userService.getAllUsers(currentUser.uid),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    if (snapshot.hasError) {
-                      return Center(child: Text('Erreur: ${snapshot.error}'));
-                    }
-
-                    final users = snapshot.data ?? [];
-
-                    if (users.isEmpty) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.chat_bubble_outline,
-                              size: 64,
-                              color: colorScheme.outline,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Aucune conversation',
-                              style: TextStyle(
-                                color: colorScheme.outline,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-
-                    return ListView.builder(
-                      itemCount: users.length,
-                      itemBuilder: (context, index) {
-                        final user = users[index];
-                        final conversationId = _firestoreService
-                            .getConversationId(currentUser.uid, user.id);
-
-                        return _ConversationTile(
-                          user: user,
-                          conversationId: conversationId,
-                          currentUserId: currentUser.uid,
-                          isSelected: _selectedUser?.id == user.id,
-                          onTap: () => _selectUser(user),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
+          child: _buildConversationsList(context, currentUser, sidebarWidth),
         ),
 
         // ========================================
@@ -174,39 +112,141 @@ class _ChatsTabState extends State<ChatsTab> {
     );
   }
 
+  Widget _buildConversationsList(BuildContext context, User currentUser, double width) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDesktop = width >= 380;
+
+    return Column(
+      children: [
+        // Header de recherche
+        Container(
+          padding: EdgeInsets.all(isDesktop ? 16 : 12),
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceContainerHighest,
+            border: Border(
+              bottom: BorderSide(
+                color: colorScheme.outlineVariant,
+              ),
+            ),
+          ),
+          child: TextField(
+            decoration: InputDecoration(
+              hintText: 'Rechercher une conversation...',
+              prefixIcon: const Icon(Icons.search),
+              filled: true,
+              fillColor: colorScheme.surfaceContainer,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(24),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: isDesktop ? 16 : 12,
+                vertical: 12,
+              ),
+            ),
+          ),
+        ),
+
+        // Liste des conversations
+        Expanded(
+          child: StreamBuilder<List<AppUser>>(
+            stream: _userService.getAllUsers(currentUser.uid),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              if (snapshot.hasError) {
+                return Center(child: Text('Erreur: ${snapshot.error}'));
+              }
+
+              final users = snapshot.data ?? [];
+
+              if (users.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.chat_bubble_outline,
+                        size: isDesktop ? 72 : 64,
+                        color: colorScheme.outline,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Aucune conversation',
+                        style: TextStyle(
+                          color: colorScheme.outline,
+                          fontSize: isDesktop ? 18 : 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                itemCount: users.length,
+                itemBuilder: (context, index) {
+                  final user = users[index];
+                  final conversationId = _firestoreService
+                      .getConversationId(currentUser.uid, user.id);
+
+                  return _ConversationTile(
+                    user: user,
+                    conversationId: conversationId,
+                    currentUserId: currentUser.uid,
+                    isSelected: _selectedUser?.id == user.id,
+                    onTap: () => _selectUser(user),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildEmptyState(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth >= 1024;
 
     return Container(
       color: colorScheme.surfaceContainerLow,
       child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.chat_bubble_outline,
-              size: 120,
-              color: colorScheme.outline.withOpacity(0.3),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Sélectionnez une conversation',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w600,
-                color: colorScheme.onSurface,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.chat_bubble_outline,
+                size: isDesktop ? 140 : 120,
+                color: colorScheme.outline.withOpacity(0.3),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Choisissez un contact dans la liste pour commencer à discuter',
-              style: TextStyle(
-                fontSize: 14,
-                color: colorScheme.outline,
+              SizedBox(height: isDesktop ? 32 : 24),
+              Text(
+                'Sélectionnez une conversation',
+                style: TextStyle(
+                  fontSize: isDesktop ? 28 : 24,
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurface,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+              SizedBox(height: isDesktop ? 12 : 8),
+              Text(
+                'Choisissez un contact dans la liste pour commencer à discuter',
+                style: TextStyle(
+                  fontSize: isDesktop ? 16 : 14,
+                  color: colorScheme.outline,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -233,6 +273,8 @@ class _ConversationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final firestoreService = FirestoreService();
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth >= 1024;
 
     Widget _buildGroupsSection(BuildContext context, String currentUserId) {
       final firestoreService = FirestoreService();
@@ -284,13 +326,23 @@ class _ConversationTile extends StatelessWidget {
         final unreadCount = conversation?.getUnreadCount(currentUserId) ?? 0;
         final hasUnread = unreadCount > 0;
 
+        // Tailles responsives
+        final avatarRadius = isDesktop ? 32.0 : 28.0;
+        final nameFontSize = isDesktop ? 17.0 : 16.0;
+        final messageFontSize = isDesktop ? 15.0 : 14.0;
+        final horizontalPadding = isDesktop ? 20.0 : 16.0;
+        final verticalPadding = isDesktop ? 14.0 : 12.0;
+
         return Material(
           color:
               isSelected ? colorScheme.secondaryContainer : Colors.transparent,
           child: InkWell(
             onTap: onTap,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
+                vertical: verticalPadding,
+              ),
               decoration: BoxDecoration(
                 border: Border(
                   bottom: BorderSide(
@@ -304,7 +356,7 @@ class _ConversationTile extends StatelessWidget {
                   Stack(
                     children: [
                       CircleAvatar(
-                        radius: 28,
+                        radius: avatarRadius,
                         backgroundColor: colorScheme.primaryContainer,
                         child: Text(
                           user.displayName.isNotEmpty
@@ -313,7 +365,7 @@ class _ConversationTile extends StatelessWidget {
                           style: TextStyle(
                             color: colorScheme.onPrimaryContainer,
                             fontWeight: FontWeight.bold,
-                            fontSize: 18,
+                            fontSize: isDesktop ? 20 : 18,
                           ),
                         ),
                       ),
@@ -323,8 +375,8 @@ class _ConversationTile extends StatelessWidget {
                           right: 0,
                           bottom: 0,
                           child: Container(
-                            width: 14,
-                            height: 14,
+                            width: isDesktop ? 16 : 14,
+                            height: isDesktop ? 16 : 14,
                             decoration: BoxDecoration(
                               color: Colors.green,
                               shape: BoxShape.circle,
@@ -338,7 +390,7 @@ class _ConversationTile extends StatelessWidget {
                     ],
                   ),
 
-                  const SizedBox(width: 12),
+                  SizedBox(width: isDesktop ? 16 : 12),
 
                   // Infos conversation
                   Expanded(
@@ -351,20 +403,20 @@ class _ConversationTile extends StatelessWidget {
                           style: TextStyle(
                             fontWeight:
                                 hasUnread ? FontWeight.bold : FontWeight.w600,
-                            fontSize: 16,
+                            fontSize: nameFontSize,
                             color: colorScheme.onSurface,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
 
-                        const SizedBox(height: 4),
+                        SizedBox(height: isDesktop ? 6 : 4),
 
                         // Dernier message ou statut
                         Text(
                           conversation?.lastMessage ?? 'Aucun message',
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: messageFontSize,
                             color: hasUnread
                                 ? colorScheme.onSurface
                                 : colorScheme.outline,
@@ -381,9 +433,9 @@ class _ConversationTile extends StatelessWidget {
                   // Badge compteur non lus
                   if (hasUnread)
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isDesktop ? 10 : 8,
+                        vertical: isDesktop ? 5 : 4,
                       ),
                       decoration: BoxDecoration(
                         color: colorScheme.primary,
@@ -393,7 +445,7 @@ class _ConversationTile extends StatelessWidget {
                         unreadCount > 99 ? '99+' : '$unreadCount',
                         style: TextStyle(
                           color: colorScheme.onPrimary,
-                          fontSize: 12,
+                          fontSize: isDesktop ? 13 : 12,
                           fontWeight: FontWeight.bold,
                         ),
                       ),

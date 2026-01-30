@@ -30,23 +30,39 @@ class MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth >= 600;
+    final isDesktop = screenWidth >= 1024;
 
     // Message supprimé pour tous
     if (message.isDeletedForEveryone) {
       return _buildDeletedMessage(context);
     }
 
+    // Dimensions responsives
+    final horizontalPadding = isDesktop ? 16.0 : 12.0;
+    final verticalPadding = isDesktop ? 6.0 : 4.0;
+    // Sur desktop/tablet en split-view, limiter davantage la largeur
+    final maxBubbleWidth = isDesktop
+        ? screenWidth * 0.45  // Desktop dans split-view
+        : (isTablet
+            ? screenWidth * 0.55  // Tablet
+            : screenWidth * 0.75); // Mobile
+
     return GestureDetector(
       onLongPress: () => _showMessageMenu(context),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: EdgeInsets.symmetric(
+          horizontal: horizontalPadding,
+          vertical: verticalPadding,
+        ),
         child: Row(
           mainAxisAlignment:
               isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             if (!isMe) _buildAvatar(context),
-            const SizedBox(width: 8),
+            SizedBox(width: isDesktop ? 12 : 8),
             Flexible(
               child: Column(
                 crossAxisAlignment:
@@ -59,22 +75,22 @@ class MessageBubble extends StatelessWidget {
                   // Bulle principale
                   Container(
                     constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.75,
+                      maxWidth: maxBubbleWidth,
                     ),
                     decoration: BoxDecoration(
                       color: isMe
                           ? colorScheme.primary
                           : colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(16),
-                        topRight: const Radius.circular(16),
-                        bottomLeft: Radius.circular(isMe ? 16 : 4),
-                        bottomRight: Radius.circular(isMe ? 4 : 16),
+                        topLeft: Radius.circular(isDesktop ? 20 : 16),
+                        topRight: Radius.circular(isDesktop ? 20 : 16),
+                        bottomLeft: Radius.circular(isMe ? (isDesktop ? 20 : 16) : 4),
+                        bottomRight: Radius.circular(isMe ? 4 : (isDesktop ? 20 : 16)),
                       ),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.05),
-                          blurRadius: 4,
+                          blurRadius: isDesktop ? 6 : 4,
                           offset: const Offset(0, 2),
                         ),
                       ],
@@ -96,8 +112,8 @@ class MessageBubble extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            if (isMe) const SizedBox(width: 24), // Espace pour alignement
+            SizedBox(width: isDesktop ? 12 : 8),
+            if (isMe) SizedBox(width: isDesktop ? 32 : 24), // Espace pour alignement
           ],
         ),
       ),
@@ -106,13 +122,17 @@ class MessageBubble extends StatelessWidget {
 
   /// Avatar de l'expéditeur
   Widget _buildAvatar(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth >= 1024;
+    final avatarRadius = isDesktop ? 20.0 : 16.0;
+
     return CircleAvatar(
-      radius: 16,
+      radius: avatarRadius,
       backgroundColor: Theme.of(context).colorScheme.primaryContainer,
       child: Text(
         message.senderName[0].toUpperCase(),
         style: TextStyle(
-          fontSize: 12,
+          fontSize: isDesktop ? 14 : 12,
           fontWeight: FontWeight.bold,
           color: Theme.of(context).colorScheme.onPrimaryContainer,
         ),
@@ -171,21 +191,28 @@ class MessageBubble extends StatelessWidget {
   Widget _buildMessageContent(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textColor = isMe ? colorScheme.onPrimary : colorScheme.onSurface;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth >= 1024;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      padding: EdgeInsets.fromLTRB(
+        isDesktop ? 16 : 12,
+        isDesktop ? 10 : 8,
+        isDesktop ? 16 : 12,
+        isDesktop ? 6 : 4,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Nom de l'expéditeur (si pas moi)
           if (!isMe)
             Padding(
-              padding: const EdgeInsets.only(bottom: 4),
+              padding: EdgeInsets.only(bottom: isDesktop ? 6 : 4),
               child: Text(
                 message.senderName,
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 12,
+                  fontSize: isDesktop ? 13 : 12,
                   color: colorScheme.primary,
                 ),
               ),
@@ -196,13 +223,13 @@ class MessageBubble extends StatelessWidget {
             GestureDetector(
               onTap: onImageTap,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(isDesktop ? 12 : 8),
                 child: CachedNetworkImage(
                   imageUrl: message.mediaUrl!,
-                  width: 200,
+                  width: isDesktop ? 280 : 200,
                   placeholder: (context, url) => Container(
-                    width: 200,
-                    height: 150,
+                    width: isDesktop ? 280 : 200,
+                    height: isDesktop ? 200 : 150,
                     color: Colors.grey[300],
                     child: const Center(child: CircularProgressIndicator()),
                   ),
@@ -217,7 +244,7 @@ class MessageBubble extends StatelessWidget {
               message.content,
               style: TextStyle(
                 color: textColor,
-                fontSize: 15,
+                fontSize: isDesktop ? 16 : 15,
               ),
             ),
         ],
@@ -230,27 +257,34 @@ class MessageBubble extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final metaColor =
         (isMe ? colorScheme.onPrimary : colorScheme.onSurface).withOpacity(0.6);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth >= 1024;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      padding: EdgeInsets.fromLTRB(
+        isDesktop ? 16 : 12,
+        0,
+        isDesktop ? 16 : 12,
+        isDesktop ? 10 : 8,
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           // Badge "modifié"
           if (message.isEdited) ...[
-            Icon(Icons.edit, size: 12, color: metaColor),
-            const SizedBox(width: 4),
+            Icon(Icons.edit, size: isDesktop ? 14 : 12, color: metaColor),
+            SizedBox(width: isDesktop ? 6 : 4),
           ],
 
           // Timestamp
           Text(
             DateFormat('HH:mm').format(message.timestamp),
-            style: TextStyle(fontSize: 11, color: metaColor),
+            style: TextStyle(fontSize: isDesktop ? 12 : 11, color: metaColor),
           ),
 
           // Statut (seulement si c'est mon message)
           if (isMe) ...[
-            const SizedBox(width: 4),
+            SizedBox(width: isDesktop ? 6 : 4),
             _buildStatusIcon(metaColor),
           ],
         ],

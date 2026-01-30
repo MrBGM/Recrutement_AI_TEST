@@ -138,23 +138,35 @@ class ChatScreen extends StatelessWidget {
     final provider = context.watch<ChatProvider>();
     final colorScheme = Theme.of(context).colorScheme;
     final otherUser = provider.otherUser;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth >= 600;
+    final isDesktop = screenWidth >= 1024;
+
+    // Sur mobile (pas dans le contexte de ChatsTab split-view), afficher la flèche retour
+    // Sur tablet/desktop dans split-view, pas besoin de la flèche retour si la largeur est suffisante
+    final showBackButton = screenWidth < 600;
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: onBack,
-        ),
+        leading: showBackButton
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: onBack,
+              )
+            : null,
+        automaticallyImplyLeading: showBackButton,
         title: _buildAppBarTitle(context, otherUser),
         backgroundColor: colorScheme.primaryContainer,
         foregroundColor: colorScheme.onPrimaryContainer,
         elevation: 0,
+        toolbarHeight: isDesktop ? 64 : 56,
         actions: [
           IconButton(
-            icon: const Icon(Icons.delete_outline),
+            icon: Icon(Icons.delete_outline, size: isDesktop ? 28 : 24),
             tooltip: 'Vider la discussion',
             onPressed: () => _showClearDialog(context, provider),
           ),
+          SizedBox(width: isDesktop ? 8 : 0),
         ],
       ),
       body: Column(
@@ -163,15 +175,18 @@ class ChatScreen extends StatelessWidget {
           if (provider.error != null)
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.all(isDesktop ? 16 : 12),
               color: colorScheme.errorContainer,
               child: Text(
                 provider.error!,
-                style: TextStyle(color: colorScheme.onErrorContainer),
+                style: TextStyle(
+                  color: colorScheme.onErrorContainer,
+                  fontSize: isDesktop ? 15 : 14,
+                ),
               ),
             ),
 
-          // ✨ NOUVEAU : Indicateur "en train d'écrire"
+          // Indicateur "en train d'écrire"
           _TypingIndicator(otherUserId: otherUser.id),
 
           // Liste des messages
@@ -193,38 +208,44 @@ class ChatScreen extends StatelessWidget {
 
                 if (messages.isEmpty) {
                   return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.chat_bubble_outline,
-                          size: 64,
-                          color: colorScheme.outline,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Aucun message',
-                          style: TextStyle(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.chat_bubble_outline,
+                            size: isDesktop ? 80 : 64,
                             color: colorScheme.outline,
-                            fontSize: 18,
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Dites bonjour à ${otherUser.displayName} !',
-                          style: TextStyle(
-                            color: colorScheme.outline,
-                            fontSize: 14,
+                          SizedBox(height: isDesktop ? 24 : 16),
+                          Text(
+                            'Aucun message',
+                            style: TextStyle(
+                              color: colorScheme.outline,
+                              fontSize: isDesktop ? 22 : 18,
+                            ),
                           ),
-                        ),
-                      ],
+                          SizedBox(height: isDesktop ? 12 : 8),
+                          Text(
+                            'Dites bonjour à ${otherUser.displayName} !',
+                            style: TextStyle(
+                              color: colorScheme.outline,
+                              fontSize: isDesktop ? 16 : 14,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 }
 
                 return ListView.builder(
                   reverse: false,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  padding: EdgeInsets.symmetric(
+                    vertical: isDesktop ? 20 : 16,
+                    horizontal: isDesktop ? 16 : 0,
+                  ),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final message = messages[index];
@@ -259,13 +280,17 @@ class ChatScreen extends StatelessWidget {
   }
 
   Widget _buildAppBarTitle(BuildContext context, AppUser otherUser) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth >= 1024;
+    final avatarRadius = isDesktop ? 22.0 : 18.0;
+
     return Row(
       children: [
         // Avatar avec indicateur en ligne
         Stack(
           children: [
             CircleAvatar(
-              radius: 18,
+              radius: avatarRadius,
               backgroundColor: Theme.of(context).colorScheme.primary,
               child: Text(
                 otherUser.displayName.isNotEmpty
@@ -274,6 +299,7 @@ class ChatScreen extends StatelessWidget {
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onPrimary,
                   fontWeight: FontWeight.bold,
+                  fontSize: isDesktop ? 16 : 14,
                 ),
               ),
             ),
@@ -281,8 +307,8 @@ class ChatScreen extends StatelessWidget {
               right: 0,
               bottom: 0,
               child: Container(
-                width: 12,
-                height: 12,
+                width: isDesktop ? 14 : 12,
+                height: isDesktop ? 14 : 12,
                 decoration: BoxDecoration(
                   color: otherUser.isOnline ? Colors.green : Colors.grey,
                   shape: BoxShape.circle,
@@ -295,7 +321,7 @@ class ChatScreen extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: isDesktop ? 16 : 12),
         // Nom et statut
         Expanded(
           child: Column(
@@ -303,13 +329,13 @@ class ChatScreen extends StatelessWidget {
             children: [
               Text(
                 otherUser.displayName,
-                style: const TextStyle(fontSize: 16),
+                style: TextStyle(fontSize: isDesktop ? 18 : 16),
                 overflow: TextOverflow.ellipsis,
               ),
               Text(
                 otherUser.isOnline ? 'En ligne' : 'Hors ligne',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: isDesktop ? 13 : 12,
                   fontWeight: FontWeight.normal,
                   color: otherUser.isOnline
                       ? Colors.green
