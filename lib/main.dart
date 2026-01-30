@@ -12,7 +12,6 @@ import 'providers/chat_provider.dart';
 import 'models/app_user.dart';
 import 'services/user_service.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'config/api_keys.dart'; // Import des clés API
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,12 +19,8 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Configurer la clé VAPID pour les notifications push Web
-  if (kIsWeb && ApiKeys.isVapidConfigured) {
-    NotificationService.configure(vapidKey: ApiKeys.vapidKey);
-  }
-
   // Initialiser les notifications POUR LE WEB SEULEMENT
+  // La clé VAPID est lue automatiquement depuis window.firebaseConfig (index.html)
   if (kIsWeb) {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId != null) {

@@ -1,6 +1,9 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -11,12 +14,22 @@ class NotificationService {
   String? _fcmToken;
   String? get fcmToken => _fcmToken;
 
-  // Clé VAPID par défaut - Peut être override via configure()
-  static String? _vapidKey;
+  /// Récupère la clé VAPID depuis window.firebaseConfig (index.html)
+  static String? _getVapidKeyFromConfig() {
+    if (!kIsWeb) return null;
 
-  /// Configure la clé VAPID avant l'initialisation
-  static void configure({String? vapidKey}) {
-    _vapidKey = vapidKey;
+    try {
+      final firebaseConfig = globalContext['firebaseConfig'];
+      if (firebaseConfig != null && firebaseConfig.isA<JSObject>()) {
+        final vapidKey = (firebaseConfig as JSObject)['vapidKey'];
+        if (vapidKey != null && vapidKey.isA<JSString>()) {
+          return (vapidKey as JSString).toDart;
+        }
+      }
+    } catch (e) {
+      print('⚠️ Impossible de lire window.firebaseConfig: $e');
+    }
+    return null;
   }
 
   /// Initialise le service de notifications (version WEB)
@@ -29,16 +42,18 @@ class NotificationService {
     // Demander la permission
     await _requestPermission();
 
-    // Vérifier si la clé VAPID est configurée
-    if (_vapidKey == null || _vapidKey!.isEmpty) {
-      print('⚠️ Clé VAPID non configurée - Notifications push désactivées');
-      print('   Configurez ApiKeys.vapidKey dans lib/config/api_keys.dart');
+    // Récupérer la clé VAPID depuis window.firebaseConfig (centralisé dans index.html)
+    final vapidKey = _getVapidKeyFromConfig();
+
+    if (vapidKey == null || vapidKey.isEmpty) {
+      print('⚠️ Clé VAPID non trouvée dans window.firebaseConfig');
+      print('   Vérifiez que vapidKey est défini dans web/index.html');
       return;
     }
 
     try {
       // Obtenir le token FCM
-      _fcmToken = await _messaging.getToken(vapidKey: _vapidKey);
+      _fcmToken = await _messaging.getToken(vapidKey: vapidKey);
 
       if (_fcmToken != null) {
         print('✅ Token FCM Web obtenu: ${_fcmToken!.substring(0, 20)}...');

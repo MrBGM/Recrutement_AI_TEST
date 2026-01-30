@@ -10,22 +10,14 @@
 /// - Créez un compte ou connectez-vous
 /// - Générez une nouvelle clé API
 ///
-/// Pour obtenir la clé VAPID (Firebase Cloud Messaging Web) :
-/// - Allez dans Firebase Console > Project Settings > Cloud Messaging
-/// - Générez ou copiez la "Web Push certificate" (clé publique VAPID)
+/// NOTE: La clé VAPID est centralisée dans web/index.html
+/// (window.firebaseConfig.vapidKey) - pas besoin de la dupliquer ici
 
 class ApiKeys {
   // Clé API Groq pour les suggestions IA
   static const String groqApiKey = 'YOUR_GROQ_API_KEY_HERE';
 
-  // Clé VAPID pour les notifications push Web (clé publique)
-  static const String vapidKey = 'YOUR_VAPID_KEY_HERE';
-
   /// Vérifie si la clé Groq est configurée
   static bool get isGroqConfigured =>
       groqApiKey.isNotEmpty && !groqApiKey.contains('YOUR_');
-
-  /// Vérifie si la clé VAPID est configurée
-  static bool get isVapidConfigured =>
-      vapidKey.isNotEmpty && !vapidKey.contains('YOUR_');
 }
