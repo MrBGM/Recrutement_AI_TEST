@@ -24,11 +24,14 @@ export const config = {
     baseUrl: 'https://api.groq.com/openai/v1/chat/completions',
   },
 
-  // Configuration IA
+  // Configuration IA (alignée avec le frontend)
   ai: {
-    model: process.env.AI_MODEL || 'llama-3.3-70b-versatile',
-    maxTokens: parseInt(process.env.AI_MAX_TOKENS, 10) || 300,
+    primaryModel: process.env.AI_MODEL || 'llama-3.1-70b-versatile',
+    fallbackModel: process.env.AI_FALLBACK_MODEL || 'llama-3.1-8b-instant',
+    maxTokens: parseInt(process.env.AI_MAX_TOKENS, 10) || 250,
     temperature: parseFloat(process.env.AI_TEMPERATURE) || 0.7,
+    topP: parseFloat(process.env.AI_TOP_P) || 0.9,
+    presencePenalty: parseFloat(process.env.AI_PRESENCE_PENALTY) || 0.1,
   },
 
   // Firebase

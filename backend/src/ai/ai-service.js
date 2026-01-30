@@ -88,16 +88,11 @@ export class AIService {
         analysis
       );
 
-      // Appeler l'API Groq
-      const completion = await this.groq.chat.completions.create({
-        model: config.ai.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        max_tokens: config.ai.maxTokens,
-        temperature: config.ai.temperature,
-      });
+      // Appeler l'API Groq avec fallback
+      const { completion, modelUsed } = await this._callGroqWithFallback(
+        systemPrompt,
+        userPrompt
+      );
 
       const suggestion = completion.choices[0]?.message?.content?.trim() || '';
       const processingTime = Date.now() - startTime;
@@ -107,6 +102,7 @@ export class AIService {
 
       logger.info('Suggestion generee avec succes', {
         mode,
+        model: modelUsed,
         processingTime: `${processingTime}ms`,
         tokensUsed: completion.usage?.total_tokens,
       });
@@ -116,7 +112,7 @@ export class AIService {
         mode,
         analysis: analysis.toJSON(),
         metadata: {
-          model: config.ai.model,
+          model: modelUsed,
           processingTime,
           tokensUsed: completion.usage?.total_tokens,
         },
@@ -127,6 +123,46 @@ export class AIService {
         mode,
       });
       throw error;
+    }
+  }
+
+  /**
+   * Appelle l'API Groq avec fallback sur le modele secondaire
+   * @param {string} systemPrompt - Prompt systeme
+   * @param {string} userPrompt - Prompt utilisateur
+   * @returns {Promise<Object>} - Completion et modele utilise
+   */
+  async _callGroqWithFallback(systemPrompt, userPrompt) {
+    const models = [config.ai.primaryModel, config.ai.fallbackModel];
+
+    for (const model of models) {
+      try {
+        logger.info(`Tentative avec le modele: ${model}`);
+
+        const completion = await this.groq.chat.completions.create({
+          model: model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          max_tokens: config.ai.maxTokens,
+          temperature: config.ai.temperature,
+          top_p: config.ai.topP,
+          presence_penalty: config.ai.presencePenalty,
+        });
+
+        return { completion, modelUsed: model };
+      } catch (error) {
+        logger.warn(`Echec avec ${model}: ${error.message}`);
+
+        // Si c'est le dernier modele, on propage l'erreur
+        if (model === config.ai.fallbackModel) {
+          throw error;
+        }
+
+        // Sinon, on continue avec le modele suivant
+        logger.info(`Basculement vers le modele de fallback: ${config.ai.fallbackModel}`);
+      }
     }
   }
 
