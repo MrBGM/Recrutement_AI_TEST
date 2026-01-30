@@ -110,14 +110,9 @@ service cloud.firestore {
                          (isParticipantInConversation(conversationId) || isInParticipantsList()) &&
                          isValidMessageCreate();
 
+        // Règle simplifiée pour les mises à jour de messages
         allow update: if isAuthenticated() &&
-                         (isParticipantInConversation(conversationId) || isInParticipantsList()) && (
-          onlyAllowedFieldsChanged(['deletedForUsers']) ||
-          (isSender() && onlyAllowedFieldsChanged(['content', 'isEdited', 'editedAt', 'originalContent'])) ||
-          (isSender() && onlyAllowedFieldsChanged(['isDeletedForEveryone', 'content', 'deletedAt'])) ||
-          (!isSender() && onlyAllowedFieldsChanged(['status', 'deliveredAt', 'readAt'])) ||
-          onlyAllowedFieldsChanged(['reactions'])
-        );
+                         (isParticipantInConversation(conversationId) || isInParticipantsList());
 
         allow delete: if isAuthenticated() &&
                          (isParticipantInConversation(conversationId) || isInParticipantsList()) &&
