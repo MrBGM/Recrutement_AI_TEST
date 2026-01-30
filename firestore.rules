@@ -22,8 +22,10 @@ service cloud.firestore {
     }
 
     // Vérifie si l'utilisateur est participant (pour conversations 1-1)
+    // Format du conversationId: userId1_userId2 (triés alphabétiquement)
     function isParticipantInConversation(conversationId) {
-      return conversationId.matches('.*' + request.auth.uid + '.*');
+      return conversationId.matches(request.auth.uid + '_.*') ||
+             conversationId.matches('.*_' + request.auth.uid);
     }
 
     // Vérifie si l'utilisateur est dans la liste des participants (pour groupes)
@@ -103,19 +105,19 @@ service cloud.firestore {
       allow delete: if false;
 
       match /messages/{messageId} {
-        allow read: if isAuthenticated() &&
-                       (isParticipantInConversation(conversationId) || isInParticipantsList());
+        // Vérifie si l'utilisateur est participant dans cette conversation
+        // Note: isInParticipantsList() ne fonctionne pas ici car les messages n'ont pas participantIds
+        allow read: if isAuthenticated() && isParticipantInConversation(conversationId);
 
         allow create: if isAuthenticated() &&
-                         (isParticipantInConversation(conversationId) || isInParticipantsList()) &&
+                         isParticipantInConversation(conversationId) &&
                          isValidMessageCreate();
 
-        // Règle simplifiée pour les mises à jour de messages
-        allow update: if isAuthenticated() &&
-                         (isParticipantInConversation(conversationId) || isInParticipantsList());
+        // Règle simplifiée pour les mises à jour de messages (status, reactions, etc.)
+        allow update: if isAuthenticated() && isParticipantInConversation(conversationId);
 
         allow delete: if isAuthenticated() &&
-                         (isParticipantInConversation(conversationId) || isInParticipantsList()) &&
+                         isParticipantInConversation(conversationId) &&
                          isSender();
       }
     }
