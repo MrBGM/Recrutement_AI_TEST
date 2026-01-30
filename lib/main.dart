@@ -11,13 +11,19 @@ import 'screens/chat_screen.dart';
 import 'providers/chat_provider.dart';
 import 'models/app_user.dart';
 import 'services/user_service.dart';
-import 'package:flutter/foundation.dart' show kIsWeb; // AJOUTER CET IMPORT
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'config/api_keys.dart'; // Import des clés API
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Configurer la clé VAPID pour les notifications push Web
+  if (kIsWeb && ApiKeys.isVapidConfigured) {
+    NotificationService.configure(vapidKey: ApiKeys.vapidKey);
+  }
 
   // Initialiser les notifications POUR LE WEB SEULEMENT
   if (kIsWeb) {
