@@ -286,25 +286,46 @@ class FirestoreService {
     });
   }
 
-  /// ✅ CORRIGÉ : Marque tous les messages comme lus (méthode directe sans Cloud Function)
+  /// ✅ CORRIGÉ : Marque tous les messages comme lus (méthode simplifiée)
+  /// Utilise une requête simple puis filtre côté client pour éviter
+  /// les problèmes d'index composite et de permissions
   Future<void> markAllMessagesAsRead(
     String conversationId,
     String currentUserId,
   ) async {
     try {
-      // Méthode directe via Firestore
+      // Récupérer tous les messages de la conversation (requête simple)
       final snapshot = await _firestore
           .collection('conversations')
           .doc(conversationId)
           .collection('messages')
-          .where('senderId', isNotEqualTo: currentUserId)
-          .where('status', whereIn: [
-        MessageStatus.sent.name,
-        MessageStatus.delivered.name
-      ]).get();
+          .orderBy('timestamp', descending: true)
+          .limit(100) // Limiter pour la performance
+          .get();
 
+      // Filtrer côté client : messages de l'autre utilisateur non lus
+      final messagesToUpdate = snapshot.docs.where((doc) {
+        final data = doc.data();
+        final senderId = data['senderId'] as String?;
+        final status = data['status'] as String?;
+
+        // Seulement les messages de l'autre utilisateur
+        if (senderId == currentUserId) return false;
+
+        // Seulement les messages non lus (sent ou delivered)
+        return status == MessageStatus.sent.name ||
+               status == MessageStatus.delivered.name;
+      }).toList();
+
+      if (messagesToUpdate.isEmpty) {
+        // Réinitialiser le compteur même s'il n'y a pas de messages à mettre à jour
+        await _resetUnreadCount(conversationId, currentUserId);
+        return;
+      }
+
+      // Mettre à jour en batch
       final batch = _firestore.batch();
-      for (final doc in snapshot.docs) {
+      for (final doc in messagesToUpdate) {
         batch.update(doc.reference, {
           'status': MessageStatus.read.name,
           'readAt': FieldValue.serverTimestamp(),
@@ -315,7 +336,7 @@ class FirestoreService {
       // Réinitialiser le compteur non lus
       await _resetUnreadCount(conversationId, currentUserId);
 
-      print('✅ Messages marqués comme lus (méthode directe)');
+      print('✅ ${messagesToUpdate.length} messages marqués comme lus');
     } catch (e) {
       print('❌ Erreur markAllMessagesAsRead: $e');
     }

@@ -288,6 +288,7 @@ class ChatScreen extends StatelessWidget {
     final avatarRadius = isDesktop ? 22.0 : 18.0;
 
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         // Avatar avec indicateur en ligne
         Stack(
@@ -326,14 +327,16 @@ class ChatScreen extends StatelessWidget {
         ),
         SizedBox(width: isDesktop ? 16 : 12),
         // Nom et statut
-        Expanded(
+        Flexible(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 otherUser.displayName,
                 style: TextStyle(fontSize: isDesktop ? 18 : 16),
                 overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
               Text(
                 otherUser.isOnline ? 'En ligne' : 'Hors ligne',
@@ -347,6 +350,8 @@ class ChatScreen extends StatelessWidget {
                           .onPrimaryContainer
                           .withOpacity(0.7),
                 ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
             ],
           ),
