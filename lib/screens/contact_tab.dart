@@ -1094,37 +1094,102 @@ class _GroupTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final unreadCount = group.getUnreadCount(currentUserId);
+    final hasUnread = unreadCount > 0;
 
     return ListTile(
-      leading: CircleAvatar(
-        radius: 24,
-        backgroundColor: colorScheme.secondaryContainer,
-        child: Icon(
-          Icons.groups,
-          color: colorScheme.onSecondaryContainer,
-        ),
+      leading: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: colorScheme.secondaryContainer,
+            child: Icon(
+              Icons.groups,
+              color: colorScheme.onSecondaryContainer,
+            ),
+          ),
+          // Badge de notification
+          if (hasUnread)
+            Positioned(
+              right: -4,
+              top: -4,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                decoration: BoxDecoration(
+                  color: colorScheme.error,
+                  shape: unreadCount > 9 ? BoxShape.rectangle : BoxShape.circle,
+                  borderRadius: unreadCount > 9 ? BorderRadius.circular(10) : null,
+                ),
+                child: Center(
+                  child: Text(
+                    unreadCount > 99 ? '99+' : unreadCount.toString(),
+                    style: TextStyle(
+                      color: colorScheme.onError,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
       title: Text(
         group.name,
-        style: const TextStyle(
-          fontWeight: FontWeight.w600,
+        style: TextStyle(
+          fontWeight: hasUnread ? FontWeight.bold : FontWeight.w600,
           fontSize: 16,
         ),
       ),
-      subtitle: Text(
-        group.description?.isNotEmpty == true
-            ? group.description!
-            : '${group.memberIds.length} membres',
-        style: TextStyle(
-          color: colorScheme.outline,
-          fontSize: 13,
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (group.lastMessage != null)
+            Text(
+              group.lastMessage!,
+              style: TextStyle(
+                color: hasUnread ? colorScheme.onSurface : colorScheme.outline,
+                fontSize: 13,
+                fontWeight: hasUnread ? FontWeight.w500 : FontWeight.normal,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          Text(
+            '${group.memberIds.length} membres${group.description?.isNotEmpty == true ? ' - ${group.description}' : ''}',
+            style: TextStyle(
+              color: colorScheme.outline,
+              fontSize: 12,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
-      trailing: Icon(
-        Icons.chat_bubble_outline,
-        color: colorScheme.primary,
+      isThreeLine: group.lastMessage != null,
+      trailing: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (group.lastMessageTime != null)
+            Text(
+              _formatTime(group.lastMessageTime!),
+              style: TextStyle(
+                color: hasUnread ? colorScheme.primary : colorScheme.outline,
+                fontSize: 12,
+                fontWeight: hasUnread ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          const SizedBox(height: 4),
+          Icon(
+            Icons.chat_bubble_outline,
+            color: colorScheme.primary,
+            size: 20,
+          ),
+        ],
       ),
       onTap: () {
         Navigator.push(
@@ -1138,6 +1203,26 @@ class _GroupTile extends StatelessWidget {
         );
       },
     );
+  }
+
+  String _formatTime(DateTime time) {
+    final now = DateTime.now();
+    final difference = now.difference(time);
+
+    if (difference.inMinutes < 1) {
+      return 'Maintenant';
+    } else if (difference.inHours < 1) {
+      return 'Il y a ${difference.inMinutes} min';
+    } else if (difference.inHours < 24 && time.day == now.day) {
+      return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+    } else if (difference.inDays == 1 || (time.day == now.day - 1)) {
+      return 'Hier';
+    } else if (difference.inDays < 7) {
+      const days = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+      return days[time.weekday % 7];
+    } else {
+      return '${time.day}/${time.month}';
+    }
   }
 }
 
@@ -1156,47 +1241,117 @@ class _BroadcastTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth >= 1024;
 
-    return ListTile(
-      leading: CircleAvatar(
-        radius: 24,
-        backgroundColor: Colors.orange.withOpacity(0.2),
-        child: const Icon(
-          Icons.campaign,
-          color: Colors.orange,
-        ),
+    return Card(
+      margin: EdgeInsets.symmetric(
+        horizontal: isDesktop ? 8 : 4,
+        vertical: 4,
       ),
-      title: Text(
-        broadcast.name,
-        style: const TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 16,
+      elevation: 1,
+      child: ListTile(
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: isDesktop ? 20 : 16,
+          vertical: isDesktop ? 8 : 4,
         ),
-      ),
-      subtitle: Text(
-        '${broadcast.recipientIds.length} destinataires',
-        style: TextStyle(
-          color: colorScheme.outline,
-          fontSize: 13,
+        leading: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            CircleAvatar(
+              radius: isDesktop ? 28 : 24,
+              backgroundColor: Colors.orange.withOpacity(0.2),
+              child: Icon(
+                Icons.campaign,
+                color: Colors.orange,
+                size: isDesktop ? 28 : 24,
+              ),
+            ),
+            // Badge avec le nombre de destinataires
+            Positioned(
+              right: -4,
+              bottom: -4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.orange,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: colorScheme.surface, width: 2),
+                ),
+                child: Text(
+                  '${broadcast.recipientIds.length}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.send),
-            color: colorScheme.primary,
-            onPressed: onSend,
-            tooltip: 'Envoyer un message',
+        title: Text(
+          broadcast.name,
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: isDesktop ? 17 : 16,
           ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            color: Colors.red,
-            onPressed: onDelete,
-            tooltip: 'Supprimer',
-          ),
-        ],
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            Text(
+              '${broadcast.recipientIds.length} destinataire${broadcast.recipientIds.length > 1 ? 's' : ''}',
+              style: TextStyle(
+                color: colorScheme.outline,
+                fontSize: isDesktop ? 14 : 13,
+              ),
+            ),
+            if (broadcast.updatedAt != null || broadcast.createdAt != null)
+              Text(
+                'Crée le ${_formatDate(broadcast.createdAt)}',
+                style: TextStyle(
+                  color: colorScheme.outline.withOpacity(0.7),
+                  fontSize: 11,
+                ),
+              ),
+          ],
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Bouton envoyer
+            FilledButton.icon(
+              onPressed: onSend,
+              icon: Icon(Icons.send, size: isDesktop ? 20 : 18),
+              label: Text(
+                isDesktop ? 'Envoyer' : '',
+                style: TextStyle(fontSize: isDesktop ? 14 : 12),
+              ),
+              style: FilledButton.styleFrom(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isDesktop ? 16 : 12,
+                  vertical: isDesktop ? 12 : 8,
+                ),
+              ),
+            ),
+            SizedBox(width: isDesktop ? 12 : 8),
+            // Bouton supprimer
+            IconButton(
+              icon: Icon(Icons.delete_outline, size: isDesktop ? 24 : 22),
+              color: Colors.red.withOpacity(0.8),
+              onPressed: onDelete,
+              tooltip: 'Supprimer la liste',
+            ),
+          ],
+        ),
+        isThreeLine: true,
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 }

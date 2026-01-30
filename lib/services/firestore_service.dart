@@ -564,6 +564,65 @@ class FirestoreService {
     await _firestore.collection('groups').doc(groupId).update(updates);
   }
 
+  /// Met à jour un groupe (alias pour updateGroupInfo)
+  Future<void> updateGroup({
+    required String groupId,
+    String? name,
+    String? description,
+    String? photoUrl,
+  }) async {
+    return updateGroupInfo(
+      groupId: groupId,
+      name: name,
+      description: description,
+      photoUrl: photoUrl,
+    );
+  }
+
+  /// Ajoute plusieurs membres au groupe
+  Future<void> addMembersToGroup({
+    required String groupId,
+    required List<String> memberIds,
+  }) async {
+    await _firestore.collection('groups').doc(groupId).update({
+      'memberIds': FieldValue.arrayUnion(memberIds),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Retire un membre du groupe (alias)
+  Future<void> removeMemberFromGroup({
+    required String groupId,
+    required String memberId,
+  }) async {
+    return removeGroupMember(groupId: groupId, userId: memberId);
+  }
+
+  /// Toggle le statut admin d'un membre
+  Future<void> toggleGroupAdmin({
+    required String groupId,
+    required String memberId,
+    required bool makeAdmin,
+  }) async {
+    if (makeAdmin) {
+      await promoteToAdmin(groupId: groupId, userId: memberId);
+    } else {
+      await demoteFromAdmin(groupId: groupId, userId: memberId);
+    }
+  }
+
+  /// Stream d'un groupe specifique
+  Stream<Group?> getGroupStream(String groupId) {
+    return _firestore
+        .collection('groups')
+        .doc(groupId)
+        .snapshots()
+        .map((doc) {
+      if (!doc.exists) return null;
+      return Group.fromFirestore(doc);
+    });
+  }
+
   // ==========================================
   // LISTES DE DIFFUSION
   // ==========================================

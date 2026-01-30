@@ -7,7 +7,11 @@ import '../services/firestore_service.dart';
 import '../services/user_service.dart';
 import '../providers/chat_provider.dart';
 import 'chat_screen.dart';
+import 'group_chat_screen.dart';
 import '../models/group.dart';
+
+/// Type de selection dans la liste des conversations
+enum _SelectionType { user, group }
 
 /// Onglet Discussions avec liste de conversations et chat côte à côte
 class ChatsTab extends StatefulWidget {
@@ -20,18 +24,55 @@ class ChatsTab extends StatefulWidget {
 class _ChatsTabState extends State<ChatsTab> {
   final UserService _userService = UserService();
   final FirestoreService _firestoreService = FirestoreService();
+  final TextEditingController _searchController = TextEditingController();
+
   AppUser? _selectedUser;
+  Group? _selectedGroup;
+  _SelectionType? _selectionType;
   String? _currentUserId;
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
     _currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    setState(() {
+      _searchQuery = _searchController.text.toLowerCase();
+    });
   }
 
   void _selectUser(AppUser user) {
     setState(() {
       _selectedUser = user;
+      _selectedGroup = null;
+      _selectionType = _SelectionType.user;
+    });
+  }
+
+  void _selectGroup(Group group) {
+    setState(() {
+      _selectedGroup = group;
+      _selectedUser = null;
+      _selectionType = _SelectionType.group;
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectedUser = null;
+      _selectedGroup = null;
+      _selectionType = null;
     });
   }
 
@@ -45,7 +86,7 @@ class _ChatsTabState extends State<ChatsTab> {
     final isMobile = screenWidth < 600;
 
     if (currentUser == null) {
-      return const Center(child: Text('Non connecté'));
+      return const Center(child: Text('Non connecte'));
     }
 
     // Calcul des dimensions responsives
@@ -53,9 +94,9 @@ class _ChatsTabState extends State<ChatsTab> {
 
     // Sur mobile, afficher soit la liste soit le chat (pas les deux)
     if (isMobile) {
-      if (_selectedUser == null) {
+      if (_selectionType == null) {
         return _buildConversationsList(context, currentUser, screenWidth);
-      } else {
+      } else if (_selectionType == _SelectionType.user && _selectedUser != null) {
         return ChangeNotifierProvider(
           key: ValueKey(_selectedUser!.id),
           create: (_) => ChatProvider(
@@ -64,8 +105,13 @@ class _ChatsTabState extends State<ChatsTab> {
             otherUser: _selectedUser!,
           ),
           child: ChatScreen(
-            onBack: () => setState(() => _selectedUser = null),
+            onBack: _clearSelection,
           ),
+        );
+      } else if (_selectionType == _SelectionType.group && _selectedGroup != null) {
+        return GroupChatScreen(
+          group: _selectedGroup!,
+          onBack: _clearSelection,
         );
       }
     }
@@ -74,7 +120,7 @@ class _ChatsTabState extends State<ChatsTab> {
     return Row(
       children: [
         // ========================================
-        // BARRE LATÉRALE GAUCHE - LISTE DES CONVERSATIONS
+        // BARRE LATERALE GAUCHE - LISTE DES CONVERSATIONS
         // ========================================
         Container(
           width: sidebarWidth,
@@ -94,22 +140,40 @@ class _ChatsTabState extends State<ChatsTab> {
         // ZONE PRINCIPALE - CONVERSATION
         // ========================================
         Expanded(
-          child: _selectedUser == null
-              ? _buildEmptyState(context)
-              : ChangeNotifierProvider(
-                  key: ValueKey(_selectedUser!.id),
-                  create: (_) => ChatProvider(
-                    currentUserId: currentUser.uid,
-                    currentUserName: currentUser.displayName ?? 'Utilisateur',
-                    otherUser: _selectedUser!,
-                  ),
-                  child: ChatScreen(
-                    onBack: () => setState(() => _selectedUser = null),
-                  ),
-                ),
+          child: _buildMainContent(currentUser),
         ),
       ],
     );
+  }
+
+  Widget _buildMainContent(User currentUser) {
+    if (_selectionType == null) {
+      return _buildEmptyState(context);
+    }
+
+    if (_selectionType == _SelectionType.user && _selectedUser != null) {
+      return ChangeNotifierProvider(
+        key: ValueKey(_selectedUser!.id),
+        create: (_) => ChatProvider(
+          currentUserId: currentUser.uid,
+          currentUserName: currentUser.displayName ?? 'Utilisateur',
+          otherUser: _selectedUser!,
+        ),
+        child: ChatScreen(
+          onBack: _clearSelection,
+        ),
+      );
+    }
+
+    if (_selectionType == _SelectionType.group && _selectedGroup != null) {
+      return GroupChatScreen(
+        key: ValueKey(_selectedGroup!.id),
+        group: _selectedGroup!,
+        onBack: _clearSelection,
+      );
+    }
+
+    return _buildEmptyState(context);
   }
 
   Widget _buildConversationsList(BuildContext context, User currentUser, double width) {
@@ -130,9 +194,18 @@ class _ChatsTabState extends State<ChatsTab> {
             ),
           ),
           child: TextField(
+            controller: _searchController,
             decoration: InputDecoration(
-              hintText: 'Rechercher une conversation...',
+              hintText: 'Rechercher conversation ou groupe...',
               prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                      },
+                    )
+                  : null,
               filled: true,
               fillColor: colorScheme.surfaceContainer,
               border: OutlineInputBorder(
@@ -147,64 +220,154 @@ class _ChatsTabState extends State<ChatsTab> {
           ),
         ),
 
-        // Liste des conversations
+        // Liste combinee: Groupes + Conversations individuelles
         Expanded(
-          child: StreamBuilder<List<AppUser>>(
-            stream: _userService.getAllUsers(currentUser.uid),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
+          child: _buildCombinedList(context, currentUser, isDesktop),
+        ),
+      ],
+    );
+  }
 
-              if (snapshot.hasError) {
-                return Center(child: Text('Erreur: ${snapshot.error}'));
-              }
+  Widget _buildCombinedList(BuildContext context, User currentUser, bool isDesktop) {
+    final colorScheme = Theme.of(context).colorScheme;
 
-              final users = snapshot.data ?? [];
+    return StreamBuilder<List<Group>>(
+      stream: _firestoreService.getUserGroups(currentUser.uid),
+      builder: (context, groupsSnapshot) {
+        return StreamBuilder<List<AppUser>>(
+          stream: _userService.getAllUsers(currentUser.uid),
+          builder: (context, usersSnapshot) {
+            if (groupsSnapshot.connectionState == ConnectionState.waiting &&
+                usersSnapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-              if (users.isEmpty) {
-                return Center(
+            final groups = groupsSnapshot.data ?? [];
+            final users = usersSnapshot.data ?? [];
+
+            // Filtrer par recherche
+            final filteredGroups = _searchQuery.isEmpty
+                ? groups
+                : groups.where((g) => g.name.toLowerCase().contains(_searchQuery)).toList();
+
+            final filteredUsers = _searchQuery.isEmpty
+                ? users
+                : users.where((u) => u.displayName.toLowerCase().contains(_searchQuery)).toList();
+
+            if (filteredGroups.isEmpty && filteredUsers.isEmpty) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        Icons.chat_bubble_outline,
+                        _searchQuery.isNotEmpty
+                            ? Icons.search_off
+                            : Icons.chat_bubble_outline,
                         size: isDesktop ? 72 : 64,
                         color: colorScheme.outline,
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'Aucune conversation',
+                        _searchQuery.isNotEmpty
+                            ? 'Aucun resultat pour "$_searchQuery"'
+                            : 'Aucune conversation',
                         style: TextStyle(
                           color: colorScheme.outline,
                           fontSize: isDesktop ? 18 : 16,
                         ),
+                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),
-                );
-              }
-
-              return ListView.builder(
-                itemCount: users.length,
-                itemBuilder: (context, index) {
-                  final user = users[index];
-                  final conversationId = _firestoreService
-                      .getConversationId(currentUser.uid, user.id);
-
-                  return _ConversationTile(
-                    user: user,
-                    conversationId: conversationId,
-                    currentUserId: currentUser.uid,
-                    isSelected: _selectedUser?.id == user.id,
-                    onTap: () => _selectUser(user),
-                  );
-                },
+                ),
               );
-            },
+            }
+
+            return ListView(
+              children: [
+                // Section Groupes
+                if (filteredGroups.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    context,
+                    'Groupes',
+                    filteredGroups.length,
+                    Icons.groups,
+                    isDesktop,
+                  ),
+                  ...filteredGroups.map((group) => _GroupConversationTile(
+                        group: group,
+                        currentUserId: currentUser.uid,
+                        isSelected: _selectedGroup?.id == group.id,
+                        onTap: () => _selectGroup(group),
+                        isDesktop: isDesktop,
+                      )),
+                  const SizedBox(height: 8),
+                ],
+
+                // Section Conversations individuelles
+                if (filteredUsers.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    context,
+                    'Conversations',
+                    filteredUsers.length,
+                    Icons.person,
+                    isDesktop,
+                  ),
+                  ...filteredUsers.map((user) {
+                    final conversationId = _firestoreService.getConversationId(
+                        currentUser.uid, user.id);
+                    return _ConversationTile(
+                      user: user,
+                      conversationId: conversationId,
+                      currentUserId: currentUser.uid,
+                      isSelected: _selectedUser?.id == user.id,
+                      onTap: () => _selectUser(user),
+                    );
+                  }),
+                ],
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSectionHeader(
+    BuildContext context,
+    String title,
+    int count,
+    IconData icon,
+    bool isDesktop,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isDesktop ? 20 : 16,
+        vertical: isDesktop ? 12 : 10,
+      ),
+      color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: isDesktop ? 20 : 18,
+            color: colorScheme.primary,
           ),
-        ),
-      ],
+          const SizedBox(width: 8),
+          Text(
+            '$title ($count)',
+            style: TextStyle(
+              fontSize: isDesktop ? 14 : 13,
+              fontWeight: FontWeight.bold,
+              color: colorScheme.primary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -253,7 +416,7 @@ class _ChatsTabState extends State<ChatsTab> {
   }
 }
 
-/// Tuile représentant une conversation avec compteur non lus
+/// Tuile representant une conversation avec compteur non lus
 class _ConversationTile extends StatelessWidget {
   final AppUser user;
   final String conversationId;
@@ -275,49 +438,6 @@ class _ConversationTile extends StatelessWidget {
     final firestoreService = FirestoreService();
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth >= 1024;
-
-    Widget _buildGroupsSection(BuildContext context, String currentUserId) {
-      final firestoreService = FirestoreService();
-
-      return StreamBuilder<List<Group>>(
-        stream: firestoreService.getUserGroups(currentUserId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(child: CircularProgressIndicator()),
-            );
-          }
-
-          final groups = snapshot.data ?? [];
-
-          if (groups.isEmpty) {
-            return const SizedBox.shrink();
-          }
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text(
-                  'Groupes (${groups.length})',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withOpacity(0.7),
-                  ),
-                ),
-              ),
-              ...groups.map((group) => _GroupTile(group: group)),
-            ],
-          );
-        },
-      );
-    }
 
     return StreamBuilder<Conversation?>(
       stream: firestoreService.getConversationStream(conversationId),
@@ -460,59 +580,185 @@ class _ConversationTile extends StatelessWidget {
   }
 }
 
-// Widget pour afficher un groupe
-class _GroupTile extends StatelessWidget {
+/// Tuile representant un groupe dans la liste des conversations
+class _GroupConversationTile extends StatelessWidget {
   final Group group;
+  final String currentUserId;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final bool isDesktop;
 
-  const _GroupTile({required this.group});
+  const _GroupConversationTile({
+    required this.group,
+    required this.currentUserId,
+    required this.isSelected,
+    required this.onTap,
+    required this.isDesktop,
+  });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final unreadCount = group.getUnreadCount(currentUserId);
+    final hasUnread = unreadCount > 0;
 
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: colorScheme.primaryContainer,
-        child: Text(
-          group.name.isNotEmpty ? group.name[0].toUpperCase() : 'G',
-          style: TextStyle(
-            color: colorScheme.onPrimaryContainer,
-            fontWeight: FontWeight.bold,
+    // Tailles responsives
+    final avatarRadius = isDesktop ? 32.0 : 28.0;
+    final nameFontSize = isDesktop ? 17.0 : 16.0;
+    final messageFontSize = isDesktop ? 15.0 : 14.0;
+    final horizontalPadding = isDesktop ? 20.0 : 16.0;
+    final verticalPadding = isDesktop ? 14.0 : 12.0;
+
+    return Material(
+      color: isSelected ? colorScheme.secondaryContainer : Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: horizontalPadding,
+            vertical: verticalPadding,
+          ),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: colorScheme.outlineVariant.withOpacity(0.3),
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              // Avatar du groupe
+              Stack(
+                children: [
+                  CircleAvatar(
+                    radius: avatarRadius,
+                    backgroundColor: colorScheme.tertiaryContainer,
+                    child: Icon(
+                      Icons.groups,
+                      color: colorScheme.onTertiaryContainer,
+                      size: isDesktop ? 28 : 24,
+                    ),
+                  ),
+                  // Badge non lus
+                  if (hasUnread)
+                    Positioned(
+                      right: -2,
+                      top: -2,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                        decoration: BoxDecoration(
+                          color: colorScheme.error,
+                          shape: unreadCount > 9 ? BoxShape.rectangle : BoxShape.circle,
+                          borderRadius: unreadCount > 9 ? BorderRadius.circular(10) : null,
+                        ),
+                        child: Center(
+                          child: Text(
+                            unreadCount > 99 ? '99+' : unreadCount.toString(),
+                            style: TextStyle(
+                              color: colorScheme.onError,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+
+              SizedBox(width: isDesktop ? 16 : 12),
+
+              // Infos groupe
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Nom du groupe
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            group.name,
+                            style: TextStyle(
+                              fontWeight:
+                                  hasUnread ? FontWeight.bold : FontWeight.w600,
+                              fontSize: nameFontSize,
+                              color: colorScheme.onSurface,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (group.lastMessageTime != null)
+                          Text(
+                            _formatTime(group.lastMessageTime!),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: hasUnread
+                                  ? colorScheme.primary
+                                  : colorScheme.outline,
+                              fontWeight:
+                                  hasUnread ? FontWeight.bold : FontWeight.normal,
+                            ),
+                          ),
+                      ],
+                    ),
+
+                    SizedBox(height: isDesktop ? 6 : 4),
+
+                    // Dernier message ou nombre de membres
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            group.lastMessage ?? '${group.memberIds.length} membres',
+                            style: TextStyle(
+                              fontSize: messageFontSize,
+                              color: hasUnread
+                                  ? colorScheme.onSurface
+                                  : colorScheme.outline,
+                              fontWeight:
+                                  hasUnread ? FontWeight.w500 : FontWeight.normal,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right,
+                          color: colorScheme.outline,
+                          size: isDesktop ? 22 : 20,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
-      title: Text(
-        group.name,
-        style: const TextStyle(fontWeight: FontWeight.w600),
-      ),
-      subtitle: Text(
-        '${group.memberIds.length} membres',
-        style: TextStyle(
-          fontSize: 12,
-          color: colorScheme.outline,
-        ),
-      ),
-      trailing: group.unreadCounts.values.fold(0, (a, b) => a + b) > 0
-          ? Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: colorScheme.primary,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '${group.unreadCounts.values.fold(0, (a, b) => a + b)}',
-                style: TextStyle(
-                  color: colorScheme.onPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            )
-          : null,
-      onTap: () {
-        // TODO: Naviguer vers le chat du groupe
-        print('Ouvrir le groupe: ${group.name}');
-      },
     );
+  }
+
+  String _formatTime(DateTime time) {
+    final now = DateTime.now();
+    final difference = now.difference(time);
+
+    if (difference.inMinutes < 1) {
+      return 'Maintenant';
+    } else if (difference.inHours < 1) {
+      return '${difference.inMinutes} min';
+    } else if (difference.inHours < 24 && time.day == now.day) {
+      return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+    } else if (difference.inDays == 1 || time.day == now.day - 1) {
+      return 'Hier';
+    } else if (difference.inDays < 7) {
+      const days = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+      return days[time.weekday % 7];
+    } else {
+      return '${time.day}/${time.month}';
+    }
   }
 }

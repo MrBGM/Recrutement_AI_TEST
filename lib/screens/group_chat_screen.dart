@@ -364,7 +364,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
 }
 
 /// Feuille d'informations du groupe
-class _GroupInfoSheet extends StatelessWidget {
+class _GroupInfoSheet extends StatefulWidget {
   final Group group;
   final ScrollController scrollController;
   final UserService userService;
@@ -376,221 +376,665 @@ class _GroupInfoSheet extends StatelessWidget {
   });
 
   @override
+  State<_GroupInfoSheet> createState() => _GroupInfoSheetState();
+}
+
+class _GroupInfoSheetState extends State<_GroupInfoSheet> {
+  final FirestoreService _firestoreService = FirestoreService();
+  late Group _group;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _group = widget.group;
+  }
+
+  Future<void> _editGroup() async {
+    final nameController = TextEditingController(text: _group.name);
+    final descController = TextEditingController(text: _group.description ?? '');
+
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Modifier le groupe'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Nom du groupe',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.group),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: descController,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Description (optionnel)',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.description),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context, {
+                'name': nameController.text.trim(),
+                'description': descController.text.trim(),
+              });
+            },
+            child: const Text('Enregistrer'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null && result['name']!.isNotEmpty) {
+      setState(() => _isLoading = true);
+      try {
+        await _firestoreService.updateGroup(
+          groupId: _group.id,
+          name: result['name'],
+          description: result['description'],
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Groupe modifie'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _addMembers() async {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) return;
+
+    // Obtenir tous les utilisateurs
+    final allUsers = await widget.userService.getAllUsers(currentUserId).first;
+
+    // Filtrer ceux qui ne sont pas deja membres
+    final availableUsers = allUsers
+        .where((u) => !_group.memberIds.contains(u.id))
+        .toList();
+
+    if (availableUsers.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tous les contacts sont deja membres'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    final selectedIds = <String>{};
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Ajouter des membres'),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 300,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: availableUsers.length,
+              itemBuilder: (context, index) {
+                final user = availableUsers[index];
+                final isSelected = selectedIds.contains(user.id);
+
+                return CheckboxListTile(
+                  value: isSelected,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      if (value == true) {
+                        selectedIds.add(user.id);
+                      } else {
+                        selectedIds.remove(user.id);
+                      }
+                    });
+                  },
+                  title: Text(user.displayName),
+                  subtitle: Text(user.isOnline ? 'En ligne' : 'Hors ligne'),
+                  secondary: CircleAvatar(
+                    child: Text(user.displayName.isNotEmpty
+                        ? user.displayName[0].toUpperCase()
+                        : '?'),
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Annuler'),
+            ),
+            FilledButton(
+              onPressed: selectedIds.isNotEmpty
+                  ? () => Navigator.pop(context, true)
+                  : null,
+              child: Text('Ajouter (${selectedIds.length})'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == true && selectedIds.isNotEmpty) {
+      setState(() => _isLoading = true);
+      try {
+        await _firestoreService.addMembersToGroup(
+          groupId: _group.id,
+          memberIds: selectedIds.toList(),
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${selectedIds.length} membre(s) ajoute(s)'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _removeMember(String memberId, String memberName) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Retirer du groupe'),
+        content: Text('Voulez-vous retirer $memberName du groupe ?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Retirer'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+      try {
+        await _firestoreService.removeMemberFromGroup(
+          groupId: _group.id,
+          memberId: memberId,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$memberName retire du groupe'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _leaveGroup() async {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Quitter le groupe'),
+        content: const Text(
+          'Voulez-vous vraiment quitter ce groupe ? '
+          'Vous ne recevrez plus les messages.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Quitter'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+      try {
+        await _firestoreService.removeMemberFromGroup(
+          groupId: _group.id,
+          memberId: currentUserId,
+        );
+        if (mounted) {
+          Navigator.pop(context); // Fermer la feuille
+          Navigator.pop(context); // Retour a la liste
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Vous avez quitte le groupe'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _toggleAdmin(String memberId, String memberName, bool makeAdmin) async {
+    final action = makeAdmin ? 'promouvoir' : 'retrograder';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(makeAdmin ? 'Promouvoir admin' : 'Retirer admin'),
+        content: Text(
+          makeAdmin
+              ? 'Voulez-vous promouvoir $memberName comme administrateur ?'
+              : 'Voulez-vous retirer les droits admin de $memberName ?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirmer'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+      try {
+        await _firestoreService.toggleGroupAdmin(
+          groupId: _group.id,
+          memberId: memberId,
+          makeAdmin: makeAdmin,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(makeAdmin
+                  ? '$memberName est maintenant admin'
+                  : '$memberName n\'est plus admin'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-    final isAdmin = group.adminIds.contains(currentUserId);
+    final isAdmin = _group.adminIds.contains(currentUserId);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: ListView(
-        controller: scrollController,
-        children: [
-          // Poignée
-          Center(
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 12),
-              width: 40,
-              height: 4,
+    return StreamBuilder<Group?>(
+      stream: _firestoreService.getGroupStream(_group.id),
+      builder: (context, snapshot) {
+        // Mettre a jour le groupe si les donnees changent
+        if (snapshot.hasData && snapshot.data != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _group.id == snapshot.data!.id) {
+              setState(() => _group = snapshot.data!);
+            }
+          });
+        }
+
+        return Stack(
+          children: [
+            Container(
               decoration: BoxDecoration(
-                color: colorScheme.outline.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(2),
+                color: colorScheme.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
               ),
-            ),
-          ),
-
-          // En-tête du groupe
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 48,
-                  backgroundColor: colorScheme.secondaryContainer,
-                  child: Icon(
-                    Icons.groups,
-                    size: 48,
-                    color: colorScheme.onSecondaryContainer,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  group.name,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                if (group.description?.isNotEmpty == true) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    group.description!,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: colorScheme.outline,
+              child: ListView(
+                controller: widget.scrollController,
+                children: [
+                  // Poignee
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 12),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: colorScheme.outline.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
-                    textAlign: TextAlign.center,
                   ),
-                ],
-                const SizedBox(height: 8),
-                Text(
-                  '${group.memberIds.length} membres',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: colorScheme.primary,
-                  ),
-                ),
-              ],
-            ),
-          ),
 
-          const Divider(),
-
-          // Liste des membres
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              'Membres',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: colorScheme.primary,
-              ),
-            ),
-          ),
-
-          ...group.memberIds.map((memberId) {
-            final isMemberAdmin = group.adminIds.contains(memberId);
-
-            return FutureBuilder<AppUser?>(
-              future: userService.getUserById(memberId),
-              builder: (context, snapshot) {
-                final user = snapshot.data;
-                final displayName = user?.displayName ?? 'Utilisateur';
-                final isOnline = user?.isOnline ?? false;
-
-                return ListTile(
-                  leading: Stack(
-                    children: [
-                      CircleAvatar(
-                        backgroundColor: colorScheme.primaryContainer,
-                        child: Text(
-                          displayName.isNotEmpty
-                              ? displayName[0].toUpperCase()
-                              : '?',
-                          style: TextStyle(
-                            color: colorScheme.onPrimaryContainer,
+                  // En-tete du groupe
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      children: [
+                        CircleAvatar(
+                          radius: 48,
+                          backgroundColor: colorScheme.secondaryContainer,
+                          child: Icon(
+                            Icons.groups,
+                            size: 48,
+                            color: colorScheme.onSecondaryContainer,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          _group.name,
+                          style: const TextStyle(
+                            fontSize: 24,
                             fontWeight: FontWeight.bold,
                           ),
+                          textAlign: TextAlign.center,
                         ),
-                      ),
-                      if (isOnline)
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: Container(
-                            width: 12,
-                            height: 12,
-                            decoration: BoxDecoration(
-                              color: Colors.green,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: colorScheme.surface,
-                                width: 2,
-                              ),
+                        if (_group.description?.isNotEmpty == true) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            _group.description!,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: colorScheme.outline,
                             ),
+                            textAlign: TextAlign.center,
                           ),
-                        ),
-                    ],
-                  ),
-                  title: Row(
-                    children: [
-                      Text(displayName),
-                      if (memberId == currentUserId) ...[
-                        const SizedBox(width: 8),
+                        ],
+                        const SizedBox(height: 8),
                         Text(
-                          '(vous)',
+                          '${_group.memberIds.length} membres',
                           style: TextStyle(
-                            fontSize: 12,
-                            color: colorScheme.outline,
+                            fontSize: 14,
+                            color: colorScheme.primary,
                           ),
                         ),
                       ],
-                    ],
-                  ),
-                  subtitle: Text(
-                    isOnline ? 'En ligne' : 'Hors ligne',
-                    style: TextStyle(
-                      color: isOnline ? Colors.green : colorScheme.outline,
-                      fontSize: 12,
                     ),
                   ),
-                  trailing: isMemberAdmin
-                      ? Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
+
+                  const Divider(),
+
+                  // Liste des membres
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Membres (${_group.memberIds.length})',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.primary,
                           ),
-                          decoration: BoxDecoration(
-                            color: colorScheme.primaryContainer,
-                            borderRadius: BorderRadius.circular(12),
+                        ),
+                        if (isAdmin)
+                          IconButton(
+                            icon: const Icon(Icons.person_add),
+                            color: Colors.green,
+                            onPressed: _addMembers,
+                            tooltip: 'Ajouter des membres',
                           ),
-                          child: Text(
-                            'Admin',
+                      ],
+                    ),
+                  ),
+
+                  ..._group.memberIds.map((memberId) {
+                    final isMemberAdmin = _group.adminIds.contains(memberId);
+                    final isCurrentUser = memberId == currentUserId;
+
+                    return FutureBuilder<AppUser?>(
+                      future: widget.userService.getUserById(memberId),
+                      builder: (context, snapshot) {
+                        final user = snapshot.data;
+                        final displayName = user?.displayName ?? 'Utilisateur';
+                        final isOnline = user?.isOnline ?? false;
+
+                        return ListTile(
+                          leading: Stack(
+                            children: [
+                              CircleAvatar(
+                                backgroundColor: colorScheme.primaryContainer,
+                                child: Text(
+                                  displayName.isNotEmpty
+                                      ? displayName[0].toUpperCase()
+                                      : '?',
+                                  style: TextStyle(
+                                    color: colorScheme.onPrimaryContainer,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              if (isOnline)
+                                Positioned(
+                                  right: 0,
+                                  bottom: 0,
+                                  child: Container(
+                                    width: 12,
+                                    height: 12,
+                                    decoration: BoxDecoration(
+                                      color: Colors.green,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: colorScheme.surface,
+                                        width: 2,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          title: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  displayName,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (isCurrentUser) ...[
+                                const SizedBox(width: 8),
+                                Text(
+                                  '(vous)',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: colorScheme.outline,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          subtitle: Text(
+                            isOnline ? 'En ligne' : 'Hors ligne',
                             style: TextStyle(
+                              color: isOnline ? Colors.green : colorScheme.outline,
                               fontSize: 12,
-                              color: colorScheme.onPrimaryContainer,
                             ),
                           ),
-                        )
-                      : null,
-                );
-              },
-            );
-          }),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (isMemberAdmin)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.primaryContainer,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    'Admin',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: colorScheme.onPrimaryContainer,
+                                    ),
+                                  ),
+                                ),
+                              // Menu d'actions pour les admins
+                              if (isAdmin && !isCurrentUser)
+                                PopupMenuButton<String>(
+                                  icon: const Icon(Icons.more_vert),
+                                  onSelected: (value) {
+                                    switch (value) {
+                                      case 'toggle_admin':
+                                        _toggleAdmin(
+                                          memberId,
+                                          displayName,
+                                          !isMemberAdmin,
+                                        );
+                                        break;
+                                      case 'remove':
+                                        _removeMember(memberId, displayName);
+                                        break;
+                                    }
+                                  },
+                                  itemBuilder: (context) => [
+                                    PopupMenuItem(
+                                      value: 'toggle_admin',
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            isMemberAdmin
+                                                ? Icons.remove_moderator
+                                                : Icons.add_moderator,
+                                            size: 20,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(isMemberAdmin
+                                              ? 'Retirer admin'
+                                              : 'Promouvoir admin'),
+                                        ],
+                                      ),
+                                    ),
+                                    const PopupMenuItem(
+                                      value: 'remove',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.person_remove,
+                                              size: 20, color: Colors.red),
+                                          SizedBox(width: 8),
+                                          Text('Retirer du groupe',
+                                              style: TextStyle(color: Colors.red)),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  }),
 
-          const SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
-          // Actions
-          if (isAdmin) ...[
-            const Divider(),
-            ListTile(
-              leading: Icon(Icons.edit, color: colorScheme.primary),
-              title: const Text('Modifier le groupe'),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Ouvrir l'écran d'édition du groupe
-              },
+                  // Actions
+                  if (isAdmin) ...[
+                    const Divider(),
+                    ListTile(
+                      leading: Icon(Icons.edit, color: colorScheme.primary),
+                      title: const Text('Modifier le groupe'),
+                      onTap: _editGroup,
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.person_add, color: Colors.green),
+                      title: const Text('Ajouter des membres'),
+                      onTap: _addMembers,
+                    ),
+                  ],
+
+                  ListTile(
+                    leading: const Icon(Icons.exit_to_app, color: Colors.red),
+                    title: const Text(
+                      'Quitter le groupe',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                    onTap: _leaveGroup,
+                  ),
+
+                  const SizedBox(height: 24),
+                ],
+              ),
             ),
-            ListTile(
-              leading: const Icon(Icons.person_add, color: Colors.green),
-              title: const Text('Ajouter des membres'),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Ouvrir l'écran d'ajout de membres
-              },
-            ),
+
+            // Indicateur de chargement
+            if (_isLoading)
+              Container(
+                color: Colors.black26,
+                child: const Center(
+                  child: CircularProgressIndicator(),
+                ),
+              ),
           ],
-
-          ListTile(
-            leading: const Icon(Icons.exit_to_app, color: Colors.red),
-            title: const Text(
-              'Quitter le groupe',
-              style: TextStyle(color: Colors.red),
-            ),
-            onTap: () {
-              // TODO: Implémenter quitter le groupe
-              Navigator.pop(context);
-            },
-          ),
-
-          const SizedBox(height: 24),
-        ],
-      ),
+        );
+      },
     );
   }
 }
