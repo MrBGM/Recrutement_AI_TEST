@@ -770,25 +770,33 @@ class FirestoreService {
     required String userId,
     required bool isTyping,
   }) async {
-    if (isTyping) {
-      await _firestore.collection('users').doc(userId).update({
-        'typingIn.$conversationId': FieldValue.serverTimestamp(),
-      });
+    try {
+      print('⌨️ setTypingStatus: conv=$conversationId, user=$userId, isTyping=$isTyping');
 
-      // Arrêter automatiquement après 10 secondes (marge pour les décalages)
-      _typingTimers[conversationId]?.cancel();
-      _typingTimers[conversationId] = Timer(const Duration(seconds: 10), () {
-        setTypingStatus(
-          conversationId: conversationId,
-          userId: userId,
-          isTyping: false,
-        );
-      });
-    } else {
-      await _firestore.collection('users').doc(userId).update({
-        'typingIn.$conversationId': FieldValue.delete(),
-      });
-      _typingTimers[conversationId]?.cancel();
+      if (isTyping) {
+        await _firestore.collection('users').doc(userId).update({
+          'typingIn.$conversationId': FieldValue.serverTimestamp(),
+        });
+        print('✅ Typing status = TRUE');
+
+        // Arrêter automatiquement après 10 secondes (marge pour les décalages)
+        _typingTimers[conversationId]?.cancel();
+        _typingTimers[conversationId] = Timer(const Duration(seconds: 10), () {
+          setTypingStatus(
+            conversationId: conversationId,
+            userId: userId,
+            isTyping: false,
+          );
+        });
+      } else {
+        await _firestore.collection('users').doc(userId).update({
+          'typingIn.$conversationId': FieldValue.delete(),
+        });
+        _typingTimers[conversationId]?.cancel();
+        print('✅ Typing status = FALSE');
+      }
+    } catch (e) {
+      print('❌ Erreur setTypingStatus: $e');
     }
   }
 

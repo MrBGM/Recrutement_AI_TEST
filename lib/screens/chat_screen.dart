@@ -386,7 +386,7 @@ class _TypingIndicator extends StatelessWidget {
         final user = snapshot.data!;
 
         // Debug: afficher les infos de typing
-        // print('🔍 Typing check: user=${user.displayName}, conv=$conversationId, typingIn=${user.typingIn}');
+        print('🔍 Typing check: user=${user.displayName}, conv=$conversationId, typingIn=${user.typingIn}');
 
         if (!user.isTypingIn(conversationId)) {
           return const SizedBox.shrink();
