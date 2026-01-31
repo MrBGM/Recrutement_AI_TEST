@@ -24,8 +24,8 @@ service cloud.firestore {
     // Vérifie si l'utilisateur est participant (pour conversations 1-1)
     // Format du conversationId: userId1_userId2 (triés alphabétiquement)
     function isParticipantInConversation(conversationId) {
-      return conversationId.matches(request.auth.uid + '_.*') ||
-             conversationId.matches('.*_' + request.auth.uid);
+      let parts = conversationId.split('_');
+      return parts[0] == request.auth.uid || parts[1] == request.auth.uid;
     }
 
     // Vérifie si l'utilisateur est dans la liste des participants (pour groupes)
