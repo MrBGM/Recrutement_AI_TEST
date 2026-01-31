@@ -361,7 +361,7 @@ class ChatScreen extends StatelessWidget {
   }
 }
 
-/// Indicateur "en train d'écrire..." avec mise à jour en temps réel
+/// Indicateur "en train d'écrire..." style WhatsApp avec 3 points animés
 class _TypingIndicator extends StatelessWidget {
   final String otherUserId;
   final String conversationId;
@@ -376,7 +376,6 @@ class _TypingIndicator extends StatelessWidget {
     final userService = UserService();
 
     return StreamBuilder<AppUser?>(
-      // Utiliser getUserStream pour les mises à jour en temps réel
       stream: userService.getUserStream(otherUserId),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data == null) {
@@ -394,30 +393,121 @@ class _TypingIndicator extends StatelessWidget {
 
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          color: Colors.grey[100],
           child: Row(
             children: [
-              Text(
-                '${user.displayName} est en train d\'écrire',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontStyle: FontStyle.italic,
-                  color: Colors.grey[600],
+              // Bulle avec 3 points animés style WhatsApp
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(18),
                 ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.grey[400],
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      user.displayName,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const _ThreeDotsAnimation(),
+                  ],
                 ),
               ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+/// Animation des 3 points qui rebondissent (style WhatsApp)
+class _ThreeDotsAnimation extends StatefulWidget {
+  const _ThreeDotsAnimation();
+
+  @override
+  State<_ThreeDotsAnimation> createState() => _ThreeDotsAnimationState();
+}
+
+class _ThreeDotsAnimationState extends State<_ThreeDotsAnimation>
+    with TickerProviderStateMixin {
+  late List<AnimationController> _controllers;
+  late List<Animation<double>> _animations;
+
+  @override
+  void initState() {
+    super.initState();
+    _controllers = List.generate(
+      3,
+      (index) => AnimationController(
+        duration: const Duration(milliseconds: 400),
+        vsync: this,
+      ),
+    );
+
+    _animations = _controllers.map((controller) {
+      return Tween<double>(begin: 0, end: -6).animate(
+        CurvedAnimation(parent: controller, curve: Curves.easeInOut),
+      );
+    }).toList();
+
+    // Démarrer les animations avec un délai entre chaque point
+    _startAnimations();
+  }
+
+  void _startAnimations() async {
+    while (mounted) {
+      for (int i = 0; i < 3; i++) {
+        if (!mounted) return;
+        _controllers[i].forward();
+        await Future.delayed(const Duration(milliseconds: 150));
+      }
+      await Future.delayed(const Duration(milliseconds: 100));
+      for (int i = 0; i < 3; i++) {
+        if (!mounted) return;
+        _controllers[i].reverse();
+        await Future.delayed(const Duration(milliseconds: 150));
+      }
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
+  }
+
+  @override
+  void dispose() {
+    for (var controller in _controllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(3, (index) {
+        return AnimatedBuilder(
+          animation: _animations[index],
+          builder: (context, child) {
+            return Transform.translate(
+              offset: Offset(0, _animations[index].value),
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 2),
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.7),
+                  shape: BoxShape.circle,
+                ),
+              ),
+            );
+          },
+        );
+      }),
     );
   }
 }
