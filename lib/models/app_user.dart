@@ -124,7 +124,8 @@ class AppUser {
 
     final now = DateTime.now();
     final diffSeconds = now.difference(typingTime).inSeconds;
-    final result = diffSeconds < 15;
+    // Tolérance de 30 secondes pour gérer la latence Firestore
+    final result = diffSeconds < 30;
 
     print('⏱️ isTypingIn: now=$now, typingTime=$typingTime, diff=${diffSeconds}s, result=$result');
 
